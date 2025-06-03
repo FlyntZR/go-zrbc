@@ -31,4 +31,3 @@ swagger_local.yaml
 temp
 logs/*
 info.log
-GeoLite2-City.mmdb
