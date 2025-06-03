@@ -1,0 +1,86 @@
+//protoc  -I=. -I=$GOPATH/pkg/mod/github.com/gogo/protobuf@v1.3.2  --gogofaster_out=plugins=grpc:. *.proto
+//go get -u github.com/gogo/protobuf@v1.3.2
+//go install github.com/gogo/protobuf/protoc-gen-gogofaster@latest
+syntax = "proto3";
+option go_package = "./;proto";
+import "gogoproto/gogo.proto";
+
+service UserService {
+	rpc AuthP(AuthPReq) returns (AuthPResp) {}
+	rpc Banned(BannedReq) returns (CommonResp) {}
+	rpc LiftTheBan(BannedReq) returns (CommonResp) {}
+	rpc GetUserList(GetUserListReq) returns (GetUserListResp) {}
+	rpc Auth(AuthReq) returns (AuthResp) {}
+	rpc GetUserListByName(GetUserListByNameReq) returns (GetUserListResp) {}
+}
+
+message AuthReq{
+	string Token = 1[(gogoproto.jsontag) = "token,omitempty"];
+}
+
+message AuthResp{
+	int32 Code  = 1[(gogoproto.jsontag) = "code,omitempty"];
+	string Status  = 2[(gogoproto.jsontag) = "status,omitempty"];
+	User User= 3[(gogoproto.jsontag) = "user,omitempty"];
+}
+
+message GetUserListReq {
+	repeated int64 IDList= 3[(gogoproto.jsontag) = "id_list,omitempty"];
+}
+
+enum RoleType{
+	RoleTypeNull = 0;
+	RoleTypePartner = 1;//合作方
+	RoleTypeStaff = 128;//内部员工
+	RoleTypeOperator= 129;//运营
+	RoleTypeDeveloper = 130;//开发
+	RoleTypeCerifier = 131;//审核员
+}
+
+
+message User {
+	int64 ID = 1[(gogoproto.jsontag) = "id,omitempty"];
+	string Name = 2[(gogoproto.jsontag) = "name,omitempty"];
+	string Gender = 3[(gogoproto.jsontag) = "gender,omitempty"];
+	int32 Status = 4[(gogoproto.jsontag) = "status,omitempty"];
+	RoleType Role = 5[(gogoproto.jsontag) = "role,omitempty"];
+	string NickName = 6[(gogoproto.jsontag) = "nick_name,omitempty"];
+}
+
+
+message GetUserListResp {
+	int32 Code  = 1[(gogoproto.jsontag) = "code,omitempty"];
+	string Status  = 2[(gogoproto.jsontag) = "status,omitempty"];
+	repeated User UserList= 3[(gogoproto.jsontag) = "user_list,omitempty"];
+}
+
+
+
+message BannedReq{
+	int64 Id  = 1[(gogoproto.jsontag) = "id,omitempty"];
+	string Name  = 2[(gogoproto.jsontag) = "name,omitempty"];
+}
+
+message CommonResp{
+	int32 Code  = 1[(gogoproto.jsontag) = "code"];
+	string Status  = 2[(gogoproto.jsontag) = "status"];
+	string Msg  = 3[(gogoproto.jsontag) = "msg,omitempty"];
+}
+
+message GetUserListByNameReq{
+	string Name = 1[(gogoproto.jsontag) = "name"];
+}
+
+message AuthPReq{
+	string AccessKey = 1[(gogoproto.jsontag) = "accessKey,omitempty"];
+	string Signature = 2[(gogoproto.jsontag) = "signature,omitempty"];
+	string SignatureMethod = 3[(gogoproto.jsontag) = "signatureMethod,omitempty"];
+	string SignatureVersion = 4[(gogoproto.jsontag) = "signatureVersion,omitempty"];
+	string Timestamp = 5[(gogoproto.jsontag) = "timestamp,omitempty"];
+}
+
+message AuthPResp{
+	int32 Code  = 1[(gogoproto.jsontag) = "code,omitempty"];
+	string Message  = 2[(gogoproto.jsontag) = "message,omitempty"];
+	int64 UID = 3[(gogoproto.jsontag) = "uid,omitempty"];
+}

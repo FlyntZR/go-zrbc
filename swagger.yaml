@@ -1,0 +1,599 @@
+basePath: /
+consumes:
+    - application/json
+definitions:
+    Barrage:
+        properties:
+            content:
+                description: 弹幕内容
+                type: string
+                x-go-name: Content
+            device_id:
+                description: 浏览器指纹（设备id）
+                type: string
+                x-go-name: DeviceID
+            play_seconds:
+                description: 已播放秒数
+                format: int64
+                type: integer
+                x-go-name: PlaySeconds
+            video_series_id:
+                description: 剧集id
+                type: string
+                x-go-name: VideoSeriesID
+        type: object
+        x-go-package: go-zrbc/view
+    BarrageResp:
+        properties:
+            content:
+                description: 弹幕内容
+                type: string
+                x-go-name: Content
+            created_at:
+                description: 创建时间
+                format: int64
+                type: integer
+                x-go-name: CreatedAt
+            device_id:
+                description: 浏览器指纹（设备id）
+                type: string
+                x-go-name: DeviceID
+            id:
+                description: id(自增)
+                format: int64
+                type: integer
+                x-go-name: ID
+            member_id:
+                description: 会员id
+                format: int64
+                type: integer
+                x-go-name: MemberID
+            play_seconds:
+                description: 已播放秒数
+                format: int64
+                type: integer
+                x-go-name: PlaySeconds
+        type: object
+        x-go-package: go-zrbc/view
+    CommonError:
+        properties:
+            code:
+                format: int64
+                type: integer
+                x-go-name: Code
+            err:
+                type: string
+                x-go-name: Err
+            msg:
+                type: string
+                x-go-name: Msg
+        type: object
+        x-go-package: go-zrbc/docs
+    CreateBarrageResp:
+        properties:
+            unique_id:
+                format: int64
+                type: integer
+                x-go-name: ID
+        type: object
+        x-go-package: go-zrbc/view
+    GetBarragesResp:
+        properties:
+            data:
+                items:
+                    $ref: '#/definitions/BarrageResp'
+                type: array
+                x-go-name: YsBarrages
+            total:
+                format: int64
+                type: integer
+                x-go-name: Total
+        type: object
+        x-go-package: go-zrbc/view
+    GetFileResp:
+        properties:
+            file_key:
+                type: string
+                x-go-name: FileKey
+            file_url:
+                type: string
+                x-go-name: FileUrl
+        type: object
+        x-go-package: go-zrbc/view
+    GetTimeTsResp:
+        properties:
+            s_tm:
+                type: string
+                x-go-name: STm
+            tm:
+                type: string
+                x-go-name: Tm
+            ts:
+                format: int64
+                type: integer
+                x-go-name: Ts
+            tz:
+                type: string
+                x-go-name: Tz
+        type: object
+        x-go-package: go-zrbc/view
+    GetUserInfoResp:
+        properties:
+            data:
+                $ref: '#/definitions/Member'
+        type: object
+        x-go-package: go-zrbc/view
+    Member:
+        properties:
+            cash:
+                description: 現金
+                type: string
+                x-go-name: Cash
+            chips:
+                description: 籌碼選擇
+                type: string
+                x-go-name: Chips
+            conwinprompt:
+                description: 連贏局數告警
+                format: int64
+                type: integer
+                x-go-name: Conwinprompt
+            currency:
+                description: 幣別
+                format: int64
+                type: integer
+                x-go-name: Currency
+            follow1:
+                description: 注關會員
+                type: string
+                x-go-name: Follow1
+            follow2:
+                description: 關注荷官
+                type: string
+                x-go-name: Follow2
+            head:
+                description: 頭像ID
+                format: int64
+                type: integer
+                x-go-name: Head
+            id:
+                description: 主键
+                format: int64
+                type: integer
+                x-go-name: ID
+            identity:
+                description: 0:信用,1:api
+                format: int64
+                type: integer
+                x-go-name: Identity
+            kickperiod:
+                description: 踢出局數
+                format: int64
+                type: integer
+                x-go-name: Kickperiod
+            lineid:
+                description: Line ID
+                type: string
+                x-go-name: Lineid
+            lockmoney:
+                description: 鎖定金額
+                type: string
+                x-go-name: Lockmoney
+            mem005:
+                format: int64
+                type: integer
+                x-go-name: Mem005
+            mem006:
+                format: int64
+                type: integer
+                x-go-name: Mem006
+            mem007:
+                format: int64
+                type: integer
+                x-go-name: Mem007
+            mem008:
+                format: int64
+                type: integer
+                x-go-name: Mem008
+            mem009:
+                format: int64
+                type: integer
+                x-go-name: Mem009
+            mem010:
+                format: int64
+                type: integer
+                x-go-name: Mem010
+            mem011:
+                format: int64
+                type: integer
+                x-go-name: Mem011
+            mem012:
+                format: int64
+                type: integer
+                x-go-name: Mem012
+            mem013:
+                format: int64
+                type: integer
+                x-go-name: Mem013
+            mem014:
+                type: string
+                x-go-name: Mem014
+            mem015:
+                description: login_error
+                format: int64
+                type: integer
+                x-go-name: Mem015
+            mem016:
+                description: enable
+                type: string
+                x-go-name: Mem016
+            mem017:
+                description: canbet
+                type: string
+                x-go-name: Mem017
+            mem018:
+                description: chg_pw
+                type: string
+                x-go-name: Mem018
+            mem019:
+                description: is_test
+                type: string
+                x-go-name: Mem019
+            mem020:
+                description: be_traded
+                type: string
+                x-go-name: Mem020
+            mem021:
+                format: int64
+                type: integer
+                x-go-name: Mem021
+            mem022:
+                description: 電話
+                type: string
+                x-go-name: Mem022
+            mem022a:
+                description: 電話簡碼
+                format: int64
+                type: integer
+                x-go-name: Mem022a
+            mem023:
+                format: int64
+                type: integer
+                x-go-name: Mem023
+            mem024:
+                format: int64
+                type: integer
+                x-go-name: Mem024
+            mem026:
+                description: mem_risk
+                format: int64
+                type: integer
+                x-go-name: Mem026
+            mem028:
+                description: 備註
+                type: string
+                x-go-name: Mem028
+            money:
+                description: 己出碼額度
+                type: string
+                x-go-name: Money
+            onlineprompt:
+                description: 上線提示
+                type: string
+                x-go-name: Onlineprompt
+            opengame:
+                description: 輸入要開啟的種類
+                type: string
+                x-go-name: Opengame
+            profitprompt:
+                description: 盈利告警
+                format: int64
+                type: integer
+                x-go-name: Profitprompt
+            red:
+                description: 红包开关
+                type: string
+                x-go-name: Red
+            singlebetprompt:
+                description: 單注金額告警
+                type: string
+                x-go-name: Singlebetprompt
+            site:
+                type: string
+                x-go-name: Site
+            tip:
+                type: string
+                x-go-name: Tip
+            type:
+                description: 0:現金;1:信用;2:電投
+                format: int64
+                type: integer
+                x-go-name: Type
+            user:
+                description: 用户名
+                type: string
+                x-go-name: User
+            username:
+                description: 用户名称
+                type: string
+                x-go-name: UserName
+            wallet:
+                type: string
+                x-go-name: Wallet
+            winlossprompt:
+                description: 最大可輸可贏提示
+                type: string
+                x-go-name: Winlossprompt
+        type: object
+        x-go-package: go-zrbc/view
+    TokenUser:
+        properties:
+            id:
+                format: int64
+                type: integer
+                x-go-name: ID
+            mobile:
+                type: string
+                x-go-name: Mobile
+            name:
+                type: string
+                x-go-name: UserName
+        type: object
+        x-go-package: go-zrbc/pkg/token
+    UploadFileResp:
+        properties:
+            file_key:
+                type: string
+                x-go-name: FileKey
+            file_url:
+                type: string
+                x-go-name: FileUrl
+        type: object
+        x-go-package: go-zrbc/view
+    WsUser:
+        properties:
+            id:
+                description: id
+                format: int64
+                type: integer
+                x-go-name: ID
+        type: object
+        x-go-package: go-zrbc/view
+host: wys.dev.zhanggao223.com
+info:
+    description: Documentation of our go-zrbc-api API.
+    title: go-zrbc-api
+    version: 1.0.0
+paths:
+    /v1/delete_file:
+        post:
+            consumes:
+                - multipart/form-data
+            description: s3删除文件
+            operationId: DeleteFile
+            parameters:
+                - in: header
+                  name: Authorization
+                  type: string
+                  x-go-name: Token
+                - description: s3 桶名
+                  in: formData
+                  name: bucket
+                  type: string
+                  x-go-name: Bucket
+                - description: 上传到s3的key
+                  in: formData
+                  name: file_key
+                  type: string
+                  x-go-name: FileKey
+            responses:
+                "200":
+                    $ref: '#/responses/ok'
+                "500":
+                    $ref: '#/responses/CommonError'
+            tags:
+                - S3接口
+    /v1/get_file:
+        post:
+            consumes:
+                - multipart/form-data
+            description: s3获取url
+            operationId: GetFile
+            parameters:
+                - in: header
+                  name: Authorization
+                  type: string
+                  x-go-name: Token
+                - description: s3 桶名
+                  in: formData
+                  name: bucket
+                  type: string
+                  x-go-name: Bucket
+                - description: 上传到s3的key
+                  in: formData
+                  name: file_key
+                  type: string
+                  x-go-name: FileKey
+            responses:
+                "200":
+                    description: GetFileResp
+                    schema:
+                        $ref: '#/definitions/GetFileResp'
+                "500":
+                    $ref: '#/responses/CommonError'
+            tags:
+                - S3接口
+    /v1/get_sign_file:
+        post:
+            consumes:
+                - multipart/form-data
+            description: s3获取sign url
+            operationId: GetSignFile
+            parameters:
+                - in: header
+                  name: Authorization
+                  type: string
+                  x-go-name: Token
+                - description: s3 桶名
+                  in: formData
+                  name: bucket
+                  type: string
+                  x-go-name: Bucket
+                - description: 上传到s3的key
+                  in: formData
+                  name: file_key
+                  type: string
+                  x-go-name: FileKey
+                - description: 过期时间，整数：表示多少秒后链接过期
+                  in: formData
+                  name: expires
+                  type: string
+                  x-go-name: Expires
+            responses:
+                "200":
+                    description: GetFileResp
+                    schema:
+                        $ref: '#/definitions/GetFileResp'
+                "500":
+                    $ref: '#/responses/CommonError'
+            tags:
+                - S3接口
+    /v1/time_ts:
+        get:
+            description: 获取当前时间戳
+            operationId: GetTimeTs
+            parameters:
+                - in: header
+                  name: Authorization
+                  type: string
+                  x-go-name: Token
+            responses:
+                "200":
+                    description: GetTimeTsResp
+                    schema:
+                        $ref: '#/definitions/GetTimeTsResp'
+                "500":
+                    $ref: '#/responses/CommonError'
+            tags:
+                - 基础接口
+    /v1/upload_file:
+        post:
+            consumes:
+                - multipart/form-data
+            description: s3上传图片或视频到aws
+            operationId: UploadFile
+            parameters:
+                - in: header
+                  name: Authorization
+                  type: string
+                  x-go-name: Token
+                - in: formData
+                  name: file
+                  type: file
+                  x-go-name: File
+                - description: 上传到s3的key，不传值则为'dev/原文件名'
+                  in: formData
+                  name: file_key
+                  type: string
+                  x-go-name: FileKey
+                - description: 上传到s3的content- type，只支持（image/jpeg：jpg图片； image/png：png图片； audio/mpeg：视频；不传：binary/octet-stream，s3默认二进制格式；）
+                  in: formData
+                  name: content_type
+                  type: string
+                  x-go-name: ContentType
+            responses:
+                "200":
+                    description: UploadFileResp
+                    schema:
+                        $ref: '#/definitions/UploadFileResp'
+                "500":
+                    $ref: '#/responses/CommonError'
+            tags:
+                - S3接口
+    /v1/upload_file_content:
+        post:
+            consumes:
+                - multipart/form-data
+            description: s3上传图片或视频base64到aws
+            operationId: UploadFileContent
+            parameters:
+                - in: header
+                  name: Authorization
+                  type: string
+                  x-go-name: Token
+                - description: 文件内容base64
+                  in: formData
+                  name: f_base64_data
+                  type: string
+                  x-go-name: FileContent
+                - description: 上传到s3的key，不传值则为'dev/原文件名'
+                  in: formData
+                  name: file_key
+                  type: string
+                  x-go-name: FileKey
+                - description: 上传到s3的content- type，只支持（image/jpeg：jpg图片； image/png：png图片； audio/mpeg：视频；不传：binary/octet-stream，s3默认二进制格式；）
+                  in: formData
+                  name: content_type
+                  type: string
+                  x-go-name: ContentType
+            responses:
+                "200":
+                    description: UploadFileResp
+                    schema:
+                        $ref: '#/definitions/UploadFileResp'
+                "500":
+                    $ref: '#/responses/CommonError'
+            tags:
+                - S3接口
+    /v1/user_info:
+        get:
+            description: 获取会员列表
+            operationId: GetUserInfo
+            parameters:
+                - in: header
+                  name: Authorization
+                  type: string
+                  x-go-name: Token
+            responses:
+                "200":
+                    description: GetUserInfoResp
+                    schema:
+                        $ref: '#/definitions/GetUserInfoResp'
+                "500":
+                    $ref: '#/responses/CommonError'
+            tags:
+                - 用户接口
+produces:
+    - application/json
+responses:
+    BadRequestError:
+        description: Means the client request has error
+        headers:
+            code:
+                format: int64
+                type: integer
+            err:
+                description: in:string
+                type: string
+            msg:
+                type: string
+    CommonError:
+        description: Means the server has error
+        schema:
+            $ref: '#/definitions/CommonError'
+    ok:
+        description: Means the request is successful
+        headers:
+            code:
+                format: int64
+                type: integer
+            msg:
+                type: string
+            status:
+                type: string
+schemes:
+    - https
+securityDefinitions:
+    basic:
+        type: basic
+swagger: "2.0"

@@ -1,0 +1,34 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+.idea
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+go_build_main_go
+tools/go_build_main_go__tool
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+swagger.json
+# swagger.yaml
+go-wys
+config.json
+.vscode
+.DS_Store
+*.swp
+*.code-workspace
+main
+*go-wys-application.json
+app.properties
+gen_swagger.sh
+swagger_local.yaml
+temp
+logs/*
+info.log
+GeoLite2-City.mmdb
