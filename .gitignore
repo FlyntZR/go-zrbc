@@ -17,7 +17,7 @@ tools/go_build_main_go__tool
 
 swagger.json
 # swagger.yaml
-go-wys
+go-zrbc
 config.json
 .vscode
 .DS_Store

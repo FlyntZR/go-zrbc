@@ -16,6 +16,8 @@ type Config struct {
 	MetricPort     int    `json:"metric_port"`
 	Mysql          Mysql  `json:"mysql"`
 	Redis          Redis  `json:"redis"`
+	AwsKey         string `json:"aws_key"`
+	AwsSecret      string `json:"aws_secret"`
 	LogLevel       string `json:"log_level"`
 	LogFile        string `json:"log_file"`
 	Agent          string `json:"agent"`        // 网络代理，如果非空，则需要使用代理

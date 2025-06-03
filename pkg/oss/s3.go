@@ -34,7 +34,7 @@ func S3ClientOld() *s3.Client {
 	cfg, err := config.LoadDefaultConfig(
 		context.TODO(),
 		config.WithRegion("ap-east-1"),
-		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider("xxxxxxxxxxxxxxxxx", "xxxxxxxxxxxxxxxxx", "")),
+		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(gconfig.Global.AwsKey, gconfig.Global.AwsSecret, "")),
 		config.WithHTTPClient(client),
 	)
 	if err != nil {
@@ -63,14 +63,14 @@ func S3Client() *s3.Client {
 		cfg, err = config.LoadDefaultConfig(
 			context.TODO(),
 			config.WithRegion("ap-east-1"),
-			config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider("xxxxxxxxxxxxxxxxx", "xxxxxxxxxxxxxxxx", "")),
+			config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(gconfig.Global.AwsKey, gconfig.Global.AwsSecret, "")),
 			config.WithHTTPClient(client),
 		)
 	} else {
 		cfg, err = config.LoadDefaultConfig(
 			context.TODO(),
 			config.WithRegion("ap-east-1"),
-			config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider("xxxxxxxxxxxxxxxxx", "xxxxxxxxxxxxxxxxx", "")),
+			config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(gconfig.Global.AwsKey, gconfig.Global.AwsSecret, "")),
 		)
 	}
 	if err != nil {
