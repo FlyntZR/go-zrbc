@@ -69,8 +69,8 @@ func (handler *UserHandler) SigninGame(c *gin.Context) {
 	req.Size = c.PostForm("size")
 	ui, err := strconv.Atoi(c.PostForm("ui"))
 	if err != nil {
-		commonresp.ErrResp(c, err)
-		return
+		xlog.Warnf("ui is not a number, use default value 0")
+		ui = 0
 	}
 	req.UI = ui
 	req.Mute = c.PostForm("mute")

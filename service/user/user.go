@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"go-zrbc/config"
 	"go-zrbc/db"
 	"go-zrbc/pkg/utils"
 	"go-zrbc/pkg/xlog"
@@ -66,6 +67,7 @@ type userService struct {
 	wechatURLDao       db.WechatURLDao
 	agentsLoginPassDao db.AgentsLoginPassDao
 	agentDao           db.AgentDao
+	memLoginDao        db.MemLoginDao
 
 	s3Client *s3.Client
 	redisCli *redis.Client
@@ -79,6 +81,7 @@ func NewUserService(
 	wechatURLDao db.WechatURLDao,
 	agentsLoginPassDao db.AgentsLoginPassDao,
 	agentDao db.AgentDao,
+	memLoginDao db.MemLoginDao,
 
 	s3Client *s3.Client,
 	redisCli *redis.Client,
@@ -89,6 +92,7 @@ func NewUserService(
 		wechatURLDao:       wechatURLDao,
 		agentsLoginPassDao: agentsLoginPassDao,
 		agentDao:           agentDao,
+		memLoginDao:        memLoginDao,
 
 		s3Client: s3Client,
 		redisCli: redisCli,
@@ -179,6 +183,13 @@ func processUI(ui int) int {
 func (srv *userService) getAPIURL(code int) (string, error) {
 	apiURL, err := srv.apiurlDao.QueryByCode(srv.DB(), code)
 	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			defaultURL, err := srv.apiurlDao.QueryByCode(srv.DB(), 0)
+			if err != nil {
+				return "", err
+			}
+			return defaultURL.URL, nil
+		}
 		return "", err
 	}
 	return apiURL.URL, nil
@@ -259,6 +270,24 @@ func (srv *userService) login(username, password string) (*view.Session, error) 
 	// For now, we'll create a simple session
 	sid := fmt.Sprintf("session_%d", time.Now().Unix())
 	return &view.Session{SID: sid}, nil
+}
+
+// GetClientIP gets the client IP from the gin context
+func GetClientIP(c *gin.Context) string {
+	// Try to get IP from X-Real-IP header
+	clientIP := c.GetHeader("X-Real-IP")
+	if clientIP != "" {
+		return clientIP
+	}
+
+	// Try to get IP from X-Forwarded-For header
+	clientIP = c.GetHeader("X-Forwarded-For")
+	if clientIP != "" {
+		return strings.Split(clientIP, ",")[0]
+	}
+
+	// Get IP from RemoteAddr
+	return c.ClientIP()
 }
 
 func (srv *userService) SigninGame(ctx context.Context, req *view.SigninGameReq) (*view.SigninGameResp, error) {
@@ -361,8 +390,8 @@ func (srv *userService) SigninGame(ctx context.Context, req *view.SigninGameReq)
 		baseURL = originURL
 	}
 
+	var gameURL string
 	if req.IsTest {
-		var gameURL string
 		if req.Mode != "" {
 			if req.UI != 0 {
 				if avResp.Agent.VendorID == "bbinapi" || avResp.Agent.VendorID == "bbtest" || avResp.Agent.VendorID == "bbintwapi" {
@@ -399,32 +428,115 @@ func (srv *userService) SigninGame(ctx context.Context, req *view.SigninGameReq)
 			GameURL: gameURL,
 		}, nil
 	}
-	// Handle normal login
-	session, err := srv.login(req.User, req.Password)
+
+	mem, err := srv.userDao.QueryByAccount(srv.DB(), req.User)
 	if err != nil {
-		xlog.Errorf("error to get user by account and pwd, err:%+v", err)
+		xlog.Errorf("error to get user by account, err:%+v", err)
 		return nil, err
 	}
-
-	// Build final game URL
-	urlParams := map[string]string{
-		"sid":       session.SID,
-		"mode":      req.Mode,
-		"tableid":   req.TableID,
-		"ui":        strconv.Itoa(req.UI),
-		"mute":      req.Mute,
-		"lang":      req.Lang,
-		"width":     req.Width,
-		"returnurl": req.ReturnURL,
-		"size":      req.Size,
-		"video":     req.Video,
+	ulv, utp := strconv.Itoa(mem.Mem006), "M"
+	sid := utils.ProSIDCreate(config.Global.Wcode, mem.User, ulv, utp, config.Global.SidLen)
+	var newMemLogin *db.MemLogin
+	switch ulvInt, _ := strconv.Atoi(ulv); ulvInt {
+	case 0:
+		// No action needed
+	case 1, 2, 3, 4, 5:
+		// No action needed
+	case 7:
+		now := time.Now()
+		err = srv.Tx(func(tx *gorm.DB) error {
+			newMemLogin, err = srv.memLoginDao.CreateOrUpdateMemLogin(tx, mem.ID, 0, sid, GetClientIP(ctx.(*gin.Context)), now)
+			if err != nil {
+				return err
+			}
+			if err := srv.userDao.UpdatesMember(tx, mem.ID, map[string]interface{}{
+				"mem013": now,
+				"mem014": GetClientIP(ctx.(*gin.Context)),
+			}); err != nil {
+				xlog.Errorf("Failed to update member, err:%+v", err)
+				return err
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	gameURL := srv.buildGameURL(baseURL, urlParams, avResp.Agent)
-	resp := view.SigninGameResp{
+	if newMemLogin != nil {
+		memLoginSID := ""
+		if newMemLogin != nil && newMemLogin.Mlg003 != "" {
+			memLoginSID = newMemLogin.Mlg003
+		} else {
+			memLoginSID = sid
+		}
+
+		if req.UI != 0 && req.Mode != "" {
+			if avResp.Agent.VendorID == "bbinapi" || avResp.Agent.VendorID == "bbtest" || avResp.Agent.VendorID == "bbintwapi" {
+				gameURL = fmt.Sprintf("%s?#sid=%s%s%s&ui=%d%s", baseURL, memLoginSID, modeParam, muteParam, req.UI, LanguageMap[langInt])
+			} else {
+				gameURL = fmt.Sprintf("%s?sid=%s%s%s&ui=%d%s", baseURL, memLoginSID, modeParam, muteParam, req.UI, LanguageMap[langInt])
+			}
+		} else if req.UI != 0 && req.Mode == "" {
+			if avResp.Agent.VendorID == "bbinapi" || avResp.Agent.VendorID == "bbtest" || avResp.Agent.VendorID == "bbintwapi" {
+				gameURL = fmt.Sprintf("%s?#sid=%s%s&ui=%d%s", baseURL, memLoginSID, muteParam, req.UI, LanguageMap[langInt])
+			} else {
+				gameURL = fmt.Sprintf("%s?sid=%s%s&ui=%d%s", baseURL, memLoginSID, muteParam, req.UI, LanguageMap[langInt])
+			}
+		} else if req.Mode != "" {
+			if avResp.Agent.VendorID == "bbinapi" || avResp.Agent.VendorID == "bbtest" || avResp.Agent.VendorID == "bbintwapi" {
+				gameURL = fmt.Sprintf("%s?#sid=%s%s%s%s", baseURL, memLoginSID, modeParam, muteParam, LanguageMap[langInt])
+			} else {
+				gameURL = fmt.Sprintf("%s?sid=%s%s%s%s", baseURL, memLoginSID, modeParam, muteParam, LanguageMap[langInt])
+			}
+		} else {
+			if avResp.Agent.VendorID == "bbinapi" || avResp.Agent.VendorID == "bbtest" || avResp.Agent.VendorID == "bbintwapi" {
+				gameURL = fmt.Sprintf("%s?#sid=%s%s%s", baseURL, memLoginSID, muteParam, LanguageMap[langInt])
+			} else {
+				gameURL = fmt.Sprintf("%s?sid=%s%s%s", baseURL, memLoginSID, muteParam, LanguageMap[langInt])
+			}
+		}
+
+		if req.ReturnURL != "" {
+			gameURL += "&returnurl=" + req.ReturnURL
+		}
+
+		return &view.SigninGameResp{
+			GameURL: gameURL,
+		}, nil
+	} else {
+		// Handle URL construction for non-member login case
+		if req.Mode != "" {
+			if avResp.Agent.VendorID == "bbinapi" || avResp.Agent.VendorID == "bbtest" || avResp.Agent.VendorID == "bbintwapi" {
+				gameURL = fmt.Sprintf("%s?#sid=%s%s%s%s", baseURL, sid, modeParam, muteParam, LanguageMap[langInt])
+			} else {
+				gameURL = fmt.Sprintf("%s?sid=%s%s%s%s", baseURL, sid, modeParam, muteParam, LanguageMap[langInt])
+			}
+		} else {
+			if avResp.Agent.VendorID == "bbinapi" || avResp.Agent.VendorID == "bbtest" || avResp.Agent.VendorID == "bbintwapi" {
+				gameURL = fmt.Sprintf("%s?#sid=%s%s%s", baseURL, sid, muteParam, LanguageMap[langInt])
+			} else {
+				gameURL = fmt.Sprintf("%s?sid=%s%s%s", baseURL, sid, muteParam, LanguageMap[langInt])
+			}
+		}
+	}
+
+	if req.Width == "1" {
+		gameURL += "&checkWidth=deviceWidth"
+	}
+	if req.ReturnURL != "" {
+		gameURL += "&returnurl=" + req.ReturnURL
+	}
+	if req.Size == "1" {
+		gameURL += "&size=1"
+	}
+	if req.Video == "off" {
+		gameURL += "&video=" + req.Video
+	}
+
+	return &view.SigninGameResp{
 		GameURL: gameURL,
-	}
-	return &resp, nil
+	}, nil
 }
 
 func (srv *userService) AgentVerify(ctx context.Context, req *view.AgentVerifyReq) (*view.AgentVerifyResp, error) {

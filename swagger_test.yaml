@@ -799,9 +799,10 @@ paths:
                   name: size
                   type: string
                   x-go-name: Size
-                - in: formData
+                - format: int64
+                  in: formData
                   name: ui
-                  type: string
+                  type: integer
                   x-go-name: UI
                 - in: formData
                   name: mute

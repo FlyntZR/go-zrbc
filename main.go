@@ -84,8 +84,9 @@ func Start() {
 	wechatURLDao := db.NewWechatURLDao()
 	agentsLoginPassDao := db.NewAgentsLoginPassDao()
 	agentDao := db.NewAgentDao()
+	memLoginDao := db.NewMemLoginDao()
 
-	userSrv := uService.NewUserService(sess, userDao, apiurlDao, wechatURLDao, agentsLoginPassDao, agentDao, s3Client, redisCli)
+	userSrv := uService.NewUserService(sess, userDao, apiurlDao, wechatURLDao, agentsLoginPassDao, agentDao, memLoginDao, s3Client, redisCli)
 	s3Srv := sService.NewS3Service()
 	webSrv := wService.NewWebService(sess, barrageDao, s3Client, redisCli)
 
