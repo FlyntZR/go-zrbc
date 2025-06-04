@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"go-zrbc/db"
+	"go-zrbc/pkg/utils"
 	"go-zrbc/pkg/xlog"
 	"go-zrbc/service"
 	"go-zrbc/view"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
 
 	"gorm.io/gorm"
@@ -20,7 +22,35 @@ import (
 
 const (
 	TokenPrefix = "zrys:access_token"
+
+	// Language codes mapping
+	LangChinese    = "cn"
+	LangEnglish    = "en"
+	LangThai       = "th"
+	LangVietnamese = "vi"
+	LangJapanese   = "ja"
+	LangKorean     = "ko"
+	LangHindi      = "hi"
+	LangMalay      = "ms"
+	LangIndonesian = "in"
+	LangTaiwan     = "tw"
+	LangSpanish    = "es"
 )
+
+// LanguageMap maps numeric language codes to their corresponding language parameter strings
+var LanguageMap = map[int]string{
+	0:  "&lang=" + LangChinese,
+	1:  "&lang=" + LangEnglish,
+	2:  "&lang=" + LangThai,
+	3:  "&lang=" + LangVietnamese,
+	4:  "&lang=" + LangJapanese,
+	5:  "&lang=" + LangKorean,
+	6:  "&lang=" + LangHindi,
+	7:  "&lang=" + LangMalay,
+	8:  "&lang=" + LangIndonesian,
+	9:  "&lang=" + LangTaiwan,
+	10: "&lang=" + LangSpanish,
+}
 
 type UserService interface {
 	//用户信息
@@ -146,46 +176,32 @@ func processUI(ui int) int {
 	}
 }
 
-func (srv *userService) getBaseURL(site, currency string) (string, error) {
-	switch site {
-	case "WECHAT_VERTICAL", "WECHAT_HORIZONTAL", "WECHAT_HORIZONTAL_ALT":
-		return srv.getWechatURL()
-	default:
-		return srv.getAPIURL(currency)
-	}
-}
-
-func (srv *userService) getAPIURL(code string) (string, error) {
-	codeInt, err := strconv.Atoi(code)
+func (srv *userService) getAPIURL(code int) (string, error) {
+	apiURL, err := srv.apiurlDao.QueryByCode(srv.DB(), code)
 	if err != nil {
-		xlog.Warnf("warn to strconv atoi, code:%s", code)
-		codeInt = 0
-	}
-	apiURL, err := srv.apiurlDao.QueryByCode(srv.DB(), codeInt)
-	if err != nil {
-		if code != "0" {
-			defaultApiURL, err := srv.apiurlDao.QueryByCode(srv.DB(), 0)
-			if err != nil {
-				return "", err
-			}
-			return defaultApiURL.URL, nil
-		}
 		return "", err
 	}
 	return apiURL.URL, nil
 }
 
 func (srv *userService) getWechatURL() (string, error) {
-	urlData, err := srv.wechatURLDao.GetRandomWechatURL(srv.DB())
+	var urlData *db.WechatURL
+	var err error
+	err = srv.Tx(func(tx *gorm.DB) error {
+		urlData, err = srv.wechatURLDao.GetRandomWechatURL(tx)
+		if err != nil {
+			return err
+		}
+
+		if err := srv.wechatURLDao.UpdateWechatURLUseCount(tx, urlData.ID); err != nil {
+			// Log error but continue
+			xlog.Errorf("Failed to update Wechat URL use count, err:%+v", err)
+		}
+		return nil
+	})
 	if err != nil {
 		return "", err
 	}
-
-	if err := srv.wechatURLDao.UpdateWechatURLUseCount(srv.DB(), urlData.ID); err != nil {
-		// Log error but continue
-		xlog.Errorf("Failed to update Wechat URL use count, err:%+v", err)
-	}
-
 	return urlData.URL, nil
 }
 
@@ -253,31 +269,136 @@ func (srv *userService) SigninGame(ctx context.Context, req *view.SigninGameReq)
 	}
 
 	// Validate request
-	if err := srv.validateRequest(req.User, req.Password, req.IsTest); err != nil {
-		xlog.Errorf("error to get user, err:%+v", err)
-		return nil, err
+	if !req.IsTest {
+		if err := srv.validateRequest(req.User, req.Password, req.IsTest); err != nil {
+			xlog.Errorf("error to get user, err:%+v", err)
+			return nil, err
+		}
+	}
+
+	// Define valid game modes
+	validModes := []string{
+		"onlybac", "onlydgtg", "onlyrou", "onlysicbo", "onlyniuniu",
+		"onlysamgong", "onlyfantan", "onlysedie", "onlyfishshrimpcrab",
+		"onlygoldenflower", "onlymultiple", "onlypaigow", "onlythisbar",
+		"onlybactable", "onlydgtgtable", "onlyroutable", "onlysicbotable",
+		"onlyniuniutable", "onlysamgongtable", "onlyfantantable", "onlysedietable",
+		"onlyfishshrimpcrabtable", "onlygoldenflowertable", "onlypaigowtable",
+		"onlythisbartable",
+	}
+
+	// Process mode parameter
+	modeParam := ""
+	if req.Mode != "" {
+		isValidMode := false
+		for _, validMode := range validModes {
+			if req.Mode == validMode {
+				isValidMode = true
+				break
+			}
+		}
+		if isValidMode {
+			if req.TableID != "" {
+				modeParam = "&mode=" + req.Mode + "&tableid=" + req.TableID
+			} else {
+				modeParam = "&mode=" + req.Mode
+			}
+		}
+	}
+
+	// Process mute parameter
+	muteParam := ""
+	if req.Mute == "true" {
+		muteParam = "&mute=" + req.Mute
 	}
 
 	// Process UI settings
 	req.UI = processUI(req.UI)
 
-	// Get base URL
-	baseURL, err := srv.getBaseURL(req.Site, strconv.Itoa(avResp.Agent.Currency))
+	langInt, err := strconv.Atoi(req.Lang)
+	if err != nil {
+		xlog.Warnf("Invalid language code %s, using default (0)", req.Lang)
+		langInt = 0
+	}
+
+	var baseURL, apiURL, wechatURL, originURL string
+	apiURL, err = srv.getAPIURL(avResp.Agent.Currency)
 	if err != nil {
 		xlog.Errorf("error to get base url, err:%+v", err)
 		return nil, err
 	}
-
-	// Handle test mode
-	if req.IsTest {
-		urlParams := map[string]string{"sid": "ANONYMOUS"}
-		gameURL := srv.buildGameURL(baseURL, urlParams, avResp.Agent)
-		resp := view.SigninGameResp{
-			GameURL: gameURL,
-		}
-		return &resp, nil
+	wechatURL, err = srv.getWechatURL()
+	if err != nil {
+		xlog.Errorf("error to get wechat url, err:%+v", err)
+		return nil, err
 	}
 
+	// Check if vendor is in other link vendor list
+	otherLinkVendors := []string{"keaoapi", "qianhuapi", "zunlongapi", "lsjrmbapi", "lsjthbapi", "lsjmyrapi"}
+	isOtherLinkVendor := false
+	for _, v := range otherLinkVendors {
+		if avResp.Agent.VendorID == v {
+			isOtherLinkVendor = true
+			break
+		}
+	}
+	serverName := utils.GetServerName(ctx.(*gin.Context))
+	if isOtherLinkVendor {
+		baseURL = wechatURL
+		originURL = baseURL
+	} else if serverName == "api-live01.wmexpo.net" {
+		originURL = "https://a45.me/"
+	} else {
+		originURL = apiURL
+	}
+
+	// Handle site type specific URL selection
+	siteType := req.Site
+	switch siteType {
+	case "6", "9", "99":
+		baseURL = wechatURL
+	default:
+		baseURL = originURL
+	}
+
+	if req.IsTest {
+		var gameURL string
+		if req.Mode != "" {
+			if req.UI != 0 {
+				if avResp.Agent.VendorID == "bbinapi" || avResp.Agent.VendorID == "bbtest" || avResp.Agent.VendorID == "bbintwapi" {
+					gameURL = fmt.Sprintf("%s?#sid=ANONYMOUS%s%s&ui=%d%s", baseURL, modeParam, muteParam, req.UI, LanguageMap[langInt])
+				} else {
+					gameURL = fmt.Sprintf("%s?sid=ANONYMOUS%s%s&ui=%d%s", baseURL, modeParam, muteParam, req.UI, LanguageMap[langInt])
+				}
+			} else {
+				if avResp.Agent.VendorID == "bbinapi" || avResp.Agent.VendorID == "bbtest" || avResp.Agent.VendorID == "bbintwapi" {
+					gameURL = fmt.Sprintf("%s?#sid=ANONYMOUS%s%s%s", baseURL, modeParam, muteParam, LanguageMap[langInt])
+				} else {
+					gameURL = fmt.Sprintf("%s?sid=ANONYMOUS%s%s%s", baseURL, modeParam, muteParam, LanguageMap[langInt])
+				}
+			}
+		} else {
+			if req.UI != 0 {
+				if avResp.Agent.VendorID == "bbinapi" || avResp.Agent.VendorID == "bbtest" || avResp.Agent.VendorID == "bbintwapi" {
+					gameURL = fmt.Sprintf("%s?#sid=ANONYMOUS&ui=%s%d%s", baseURL, muteParam, req.UI, LanguageMap[langInt])
+				} else {
+					gameURL = fmt.Sprintf("%s?sid=ANONYMOUS&ui=%s%d%s", baseURL, muteParam, req.UI, LanguageMap[langInt])
+				}
+			} else {
+				if avResp.Agent.VendorID == "bbinapi" || avResp.Agent.VendorID == "bbtest" || avResp.Agent.VendorID == "bbintwapi" {
+					gameURL = fmt.Sprintf("%s?#sid=ANONYMOUS%s%s", baseURL, muteParam, LanguageMap[langInt])
+				} else {
+					gameURL = fmt.Sprintf("%s?sid=ANONYMOUS%s%s", baseURL, muteParam, LanguageMap[langInt])
+				}
+			}
+		}
+		if req.ReturnURL != "" {
+			gameURL += "&returnurl=" + req.ReturnURL
+		}
+		return &view.SigninGameResp{
+			GameURL: gameURL,
+		}, nil
+	}
 	// Handle normal login
 	session, err := srv.login(req.User, req.Password)
 	if err != nil {

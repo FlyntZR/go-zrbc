@@ -77,7 +77,7 @@ func (handler *UserHandler) SigninGame(c *gin.Context) {
 	req.Video = c.PostForm("video")
 
 	xlog.Debugf("SigninGame req: %+v", &req)
-	resp, err := handler.srv.SigninGame(context.TODO(), &req)
+	resp, err := handler.srv.SigninGame(c, &req)
 	if err != nil {
 		commonresp.ErrResp(c, err)
 		return
