@@ -53,6 +53,8 @@ func (handler *UserHandler) GetUserInfo(c *gin.Context) {
 //	500: CommonError
 func (handler *UserHandler) SigninGame(c *gin.Context) {
 	var req view.SigninGameReq
+	req.VendorID = c.PostForm("vendorId")
+	req.Signature = c.PostForm("signature")
 	req.User = c.PostForm("user")
 	req.Password = c.PostForm("password")
 	isTest := c.PostForm("isTest")

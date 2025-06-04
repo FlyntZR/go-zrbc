@@ -104,6 +104,10 @@ type GetUserInfoResp struct {
 // swagger:parameters SigninGame
 type SigninGameReq struct {
 	// in:formData
+	VendorID string `form:"vendorId" json:"vendorId"`
+	// in:formData
+	Signature string `form:"signature" json:"signature"`
+	// in:formData
 	User string `form:"user" json:"user"`
 	// in:formData
 	Device string `form:"device" json:"device"`

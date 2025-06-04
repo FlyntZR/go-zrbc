@@ -2,6 +2,271 @@ basePath: /
 consumes:
     - application/json
 definitions:
+    Agent:
+        properties:
+            betStatus:
+                description: 启停押状态
+                type: string
+                x-go-name: BetStatus
+            cash:
+                description: 现金
+                type: string
+                x-go-name: Cash
+            chkKey:
+                description: 检查密钥
+                type: string
+                x-go-name: ChkKey
+            chkLock:
+                description: 是否锁定
+                type: string
+                x-go-name: ChkLock
+            createdAt:
+                description: 创建时间
+                format: int64
+                type: integer
+                x-go-name: CreatedAt
+            credit:
+                description: 信用额度
+                type: string
+                x-go-name: Credit
+            currency:
+                description: 币别
+                format: int64
+                type: integer
+                x-go-name: Currency
+            id:
+                description: sn
+                format: int64
+                type: integer
+                x-go-name: ID
+            identity:
+                description: 0:信用,1:API
+                format: int64
+                type: integer
+                x-go-name: Identity
+            kickperiod:
+                description: 踢出局数
+                format: int64
+                type: integer
+                x-go-name: Kickperiod
+            lastChpsw:
+                description: 上次修改密码时间
+                format: int64
+                type: integer
+                x-go-name: LastChpsw
+            membermax:
+                description: 会员总数
+                format: int64
+                type: integer
+                x-go-name: Membermax
+            name:
+                description: 代理商名称
+                type: string
+                x-go-name: Name
+            notification:
+                description: 通知账号
+                format: int64
+                type: integer
+                x-go-name: Notification
+            opengame:
+                description: 开启游戏
+                type: string
+                x-go-name: Opengame
+            prefixAcc:
+                description: 前缀码
+                type: string
+                x-go-name: PrefixAcc
+            prefixAdd:
+                description: 前缀码开关
+                type: string
+                x-go-name: PrefixAdd
+            profitmax:
+                description: 最大利润
+                type: string
+                x-go-name: Profitmax
+            promotecode:
+                description: 推广代码
+                type: string
+                x-go-name: Promotecode
+            receiptAcc:
+                description: 收款账号
+                format: int64
+                type: integer
+                x-go-name: ReceiptAcc
+            red:
+                description: 红包开关
+                type: string
+                x-go-name: Red
+            remark:
+                description: 备注
+                type: string
+                x-go-name: Remark
+            reportFormat:
+                description: 结算报表格式
+                format: int64
+                type: integer
+                x-go-name: ReportFormat
+            reportLang:
+                description: 结算报表语系
+                format: int64
+                type: integer
+                x-go-name: ReportLang
+            reportSwitch:
+                description: 结算报表开关
+                format: int64
+                type: integer
+                x-go-name: ReportSwitch
+            riskReset:
+                description: 风险重置开关
+                format: int64
+                type: integer
+                x-go-name: RiskReset
+            sacc:
+                description: 显示账号
+                type: string
+                x-go-name: Sacc
+            site:
+                description: 站点
+                type: string
+                x-go-name: Site
+            status:
+                description: 启停用状态
+                type: string
+                x-go-name: Status
+            testLine:
+                description: 测试线判别
+                format: int64
+                type: integer
+                x-go-name: TestLine
+            tip:
+                description: 小费开关
+                type: string
+                x-go-name: Tip
+            type:
+                description: 类型
+                format: int64
+                type: integer
+                x-go-name: Type
+            vendorId:
+                description: 代理商ID
+                type: string
+                x-go-name: VendorID
+        type: object
+        x-go-package: go-zrbc/view
+    AgentVerifyReq:
+        properties:
+            signature:
+                type: string
+                x-go-name: Signature
+            vendorId:
+                type: string
+                x-go-name: VendorID
+        type: object
+        x-go-package: go-zrbc/view
+    AgentVerifyResp:
+        properties:
+            agent:
+                $ref: '#/definitions/Agent'
+            agentsLoginPass:
+                $ref: '#/definitions/AgentsLoginPass'
+        type: object
+        x-go-package: go-zrbc/view
+    AgentsLoginPass:
+        properties:
+            addtime:
+                description: 添加时间
+                format: int64
+                type: integer
+                x-go-name: Addtime
+            aid:
+                description: 代理商ID
+                format: int64
+                type: integer
+                x-go-name: Aid
+            betfeedback:
+                description: 异常锁定,0:N;1:Y
+                format: int64
+                type: integer
+                x-go-name: Betfeedback
+            co:
+                description: 公司代码
+                type: string
+                x-go-name: Co
+            gatewayUrl:
+                description: 正机白名单使用的url
+                type: string
+                x-go-name: GatewayURL
+            id:
+                description: 主键ID
+                format: int64
+                type: integer
+                x-go-name: ID
+            lang:
+                description: 0:中文 ,1:英文
+                format: int64
+                type: integer
+                x-go-name: Lang
+            modifyTime:
+                description: 修改时间
+                format: int64
+                type: integer
+                x-go-name: ModifyTime
+            object:
+                description: 0:呼叫php,1:呼叫客户
+                format: int64
+                type: integer
+                x-go-name: Object
+            openGameUrl:
+                description: 指定网址
+                type: string
+                x-go-name: OpenGameURL
+            operator:
+                description: 操作员
+                type: string
+                x-go-name: Operator
+            prefixSwitch:
+                description: 前缀码开关
+                type: string
+                x-go-name: PrefixSwitch
+            settle:
+                description: 单一钱包结算
+                format: int64
+                type: integer
+                x-go-name: Settle
+            signature:
+                description: 密钥
+                type: string
+                x-go-name: Signature
+            signature2:
+                description: 客户密钥
+                type: string
+                x-go-name: Signature2
+            skyname:
+                description: 天空名称
+                type: string
+                x-go-name: Skyname
+            subdomain:
+                description: 子域名
+                type: string
+                x-go-name: Subdomain
+            type:
+                description: c:一般,w:单一
+                type: string
+                x-go-name: Type
+            url:
+                description: 单一钱包回传网址
+                type: string
+                x-go-name: URL
+            vendorId:
+                description: lv5 代理商
+                type: string
+                x-go-name: VendorID
+            whiteList:
+                description: 白名单
+                type: string
+                x-go-name: WhiteList
+        type: object
+        x-go-package: go-zrbc/view
     Barrage:
         properties:
             content:
@@ -478,6 +743,14 @@ paths:
             description: 开游戏
             operationId: SigninGame
             parameters:
+                - in: formData
+                  name: vendorId
+                  type: string
+                  x-go-name: VendorID
+                - in: formData
+                  name: signature
+                  type: string
+                  x-go-name: Signature
                 - in: formData
                   name: user
                   type: string

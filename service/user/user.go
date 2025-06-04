@@ -8,7 +8,6 @@ import (
 	"go-zrbc/pkg/xlog"
 	"go-zrbc/service"
 	"go-zrbc/view"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -28,6 +27,7 @@ type UserService interface {
 	GetUserInfo(ctx context.Context, userID int64) (*view.GetUserInfoResp, error)
 	GetUserByAccountAndPwd(ctx context.Context, account, pwd string) (*view.GetUserInfoResp, error)
 	SigninGame(ctx context.Context, req *view.SigninGameReq) (*view.SigninGameResp, error)
+	AgentVerify(ctx context.Context, req *view.AgentVerifyReq) (*view.AgentVerifyResp, error)
 }
 
 type userService struct {
@@ -35,6 +35,7 @@ type userService struct {
 	apiurlDao          db.ApiurlDao
 	wechatURLDao       db.WechatURLDao
 	agentsLoginPassDao db.AgentsLoginPassDao
+	agentDao           db.AgentDao
 
 	s3Client *s3.Client
 	redisCli *redis.Client
@@ -47,6 +48,7 @@ func NewUserService(
 	apiurlDao db.ApiurlDao,
 	wechatURLDao db.WechatURLDao,
 	agentsLoginPassDao db.AgentsLoginPassDao,
+	agentDao db.AgentDao,
 
 	s3Client *s3.Client,
 	redisCli *redis.Client,
@@ -56,6 +58,7 @@ func NewUserService(
 		apiurlDao:          apiurlDao,
 		wechatURLDao:       wechatURLDao,
 		agentsLoginPassDao: agentsLoginPassDao,
+		agentDao:           agentDao,
 
 		s3Client: s3Client,
 		redisCli: redisCli,
@@ -186,8 +189,8 @@ func (srv *userService) getWechatURL() (string, error) {
 	return urlData.URL, nil
 }
 
-func (srv *userService) buildGameURL(baseURL string, params map[string]string) string {
-	vendorID := os.Getenv("AGENT_AGE002")
+func (srv *userService) buildGameURL(baseURL string, params map[string]string, agent *view.Agent) string {
+	vendorID := agent.VendorID
 	urlParams := make([]string, 0)
 
 	// Add SID
@@ -243,6 +246,12 @@ func (srv *userService) login(username, password string) (*view.Session, error) 
 }
 
 func (srv *userService) SigninGame(ctx context.Context, req *view.SigninGameReq) (*view.SigninGameResp, error) {
+	avResp, err := srv.AgentVerify(ctx, &view.AgentVerifyReq{VendorID: req.VendorID, Signature: req.Signature})
+	if err != nil {
+		xlog.Errorf("error to verify agent, err:%+v", err)
+		return nil, err
+	}
+
 	// Validate request
 	if err := srv.validateRequest(req.User, req.Password, req.IsTest); err != nil {
 		xlog.Errorf("error to get user, err:%+v", err)
@@ -253,7 +262,7 @@ func (srv *userService) SigninGame(ctx context.Context, req *view.SigninGameReq)
 	req.UI = processUI(req.UI)
 
 	// Get base URL
-	baseURL, err := srv.getBaseURL(req.Site, os.Getenv("AGENT_CURRENCY"))
+	baseURL, err := srv.getBaseURL(req.Site, strconv.Itoa(avResp.Agent.Currency))
 	if err != nil {
 		xlog.Errorf("error to get base url, err:%+v", err)
 		return nil, err
@@ -262,7 +271,7 @@ func (srv *userService) SigninGame(ctx context.Context, req *view.SigninGameReq)
 	// Handle test mode
 	if req.IsTest {
 		urlParams := map[string]string{"sid": "ANONYMOUS"}
-		gameURL := srv.buildGameURL(baseURL, urlParams)
+		gameURL := srv.buildGameURL(baseURL, urlParams, avResp.Agent)
 		resp := view.SigninGameResp{
 			GameURL: gameURL,
 		}
@@ -290,9 +299,46 @@ func (srv *userService) SigninGame(ctx context.Context, req *view.SigninGameReq)
 		"video":     req.Video,
 	}
 
-	gameURL := srv.buildGameURL(baseURL, urlParams)
+	gameURL := srv.buildGameURL(baseURL, urlParams, avResp.Agent)
 	resp := view.SigninGameResp{
 		GameURL: gameURL,
 	}
 	return &resp, nil
+}
+
+func (srv *userService) AgentVerify(ctx context.Context, req *view.AgentVerifyReq) (*view.AgentVerifyResp, error) {
+	// Validate request parameters
+	if req.VendorID == "" && req.Signature == "" {
+		err := errors.New("vendor id or signature is empty")
+		xlog.Error(err)
+		return nil, err
+	}
+	var err error
+	var agent *db.Agent
+	var agentsLoginPass *db.AgentsLoginPass
+	err = srv.Tx(func(tx *gorm.DB) error {
+		agent, err = srv.agentDao.QueryByVendorID(srv.DB(), req.VendorID)
+		if err != nil {
+			xlog.Errorf("error to query agent by vendor id:%s, err:%+v", req.VendorID, err)
+			return err
+		}
+		agentsLoginPass, err = srv.agentsLoginPassDao.QueryByAidAndVendorID(tx, agent.Age001, req.VendorID)
+		if err != nil {
+			xlog.Errorf("error to query agents login pass by aid:%d and vendor id:%s, err:%+v", agent.Age001, req.VendorID, err)
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if agentsLoginPass.Signature != req.Signature {
+		err := errors.New("invalid signature")
+		xlog.Error(err)
+		return nil, err
+	}
+	return &view.AgentVerifyResp{
+		Agent:           DBToViewAgent(agent),
+		AgentsLoginPass: DBToViewAgentsLoginPass(agentsLoginPass),
+	}, nil
 }
