@@ -18,6 +18,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
 
+	commonresp "go-zrbc/pkg/http/response"
+
 	"gorm.io/gorm"
 )
 
@@ -125,6 +127,7 @@ func (srv *userService) GetUserInfo(ctx context.Context, userID int64) (*view.Ge
 func (srv *userService) GetUserByAccountAndPwd(ctx context.Context, account, pwd string) (*view.GetUserInfoResp, error) {
 	var ret *db.Member
 	var err error
+
 	err = srv.Tx(func(tx *gorm.DB) error {
 		ret, err = srv.userDao.QueryByAccountAndPwd(tx, account, pwd)
 		if err != nil {
@@ -143,25 +146,70 @@ func (srv *userService) GetUserByAccountAndPwd(ctx context.Context, account, pwd
 	return &resp, nil
 }
 
+func (srv *userService) GetUserByAccount(ctx context.Context, account string) (*view.Member, error) {
+	var ret *db.Member
+	var err error
+
+	// // First try to get user info from Redis
+	// userInfoJSON, err := srv.redisCli.HGet(ctx, "user", account).Result()
+	// if err == nil && userInfoJSON != "" {
+	// 	// User info found in Redis
+	// 	var mem view.Member
+	// 	if err := json.Unmarshal([]byte(userInfoJSON), &mem); err == nil {
+	// 		return &mem, nil
+	// 	}
+	// 	// If unmarshal fails, continue with DB query
+	// 	xlog.Warnf("Failed to unmarshal user info from Redis: %v", err)
+	// }
+
+	// If not found in Redis or error occurred, query from database
+	err = srv.Tx(func(tx *gorm.DB) error {
+		ret, err = srv.userDao.QueryByAccount(tx, account)
+		if err != nil {
+			xlog.Errorf("error to get user by account, err:%+v", err)
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	mem := DBToViewUser(ret)
+	// // Store user information in Redis
+	// var userRedisData []byte
+	// var marshalErr error
+	// userRedisData, marshalErr = json.Marshal(mem)
+	// if marshalErr != nil {
+	// 	xlog.Warnf("Failed to marshal user info for Redis: %v", marshalErr)
+	// } else {
+	// 	redisErr := srv.redisCli.HSet(ctx, "user", account, string(userRedisData)).Err()
+	// 	if redisErr != nil {
+	// 		xlog.Warnf("Failed to store user info in Redis: %v", redisErr)
+	// 	}
+	// }
+
+	return mem, nil
+}
+
 func (srv *userService) validateRequest(user, password string, isTest bool) error {
 	if !isTest {
 		if password == "" {
-			return errors.New("password is required")
+			return commonresp.ErrUserPWDEmpty
 		}
 		if user == "" {
-			return errors.New("username is required")
+			return commonresp.ErrUserEmpty
 		}
 
 		mem, err := srv.userDao.QueryByAccount(srv.DB(), user)
 		if err == gorm.ErrRecordNotFound {
-			return errors.New("user not found")
+			return commonresp.ErrUserNotExist
 		}
 		if err != err {
 			return err
 		}
 
 		if mem.Password != password {
-			return errors.New("invalid credentials")
+			return commonresp.ErrUserPWD
 		}
 	}
 	return nil
@@ -373,11 +421,12 @@ func (srv *userService) SigninGame(ctx context.Context, req *view.SigninGameReq)
 		}, nil
 	}
 
-	mem, err := srv.userDao.QueryByAccount(srv.DB(), req.User)
+	mem, err := srv.GetUserByAccount(ctx, req.User)
 	if err != nil {
 		xlog.Errorf("error to get user by account, err:%+v", err)
 		return nil, err
 	}
+	xlog.Debugf("mem:%+v", mem)
 	ulv, utp := strconv.Itoa(mem.Mem006), "M"
 	sid := utils.ProSIDCreate(config.Global.Wcode, ulv, utp, mem.ID, config.Global.SidLen)
 	var newMemLogin *db.MemLogin

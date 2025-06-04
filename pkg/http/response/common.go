@@ -62,8 +62,18 @@ func ErrorMAResp(c *gin.Context, err error) {
 
 func ErrResp(c *gin.Context, err error) {
 	xlog.Error(err)
+	if customErr, ok := err.(*CustomError); ok {
+		c.JSON(200, gin.H{
+			"code":   customErr.Code,
+			"msg":    customErr.Message,
+			"status": "fail",
+			"data":   nil,
+		})
+		return
+	}
+	// 默认系统错误
 	c.JSON(200, gin.H{
-		"code":   50001,
+		"code":   CodeSystemError,
 		"msg":    err.Error(),
 		"status": "fail",
 		"data":   nil,
