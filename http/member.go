@@ -59,7 +59,7 @@ func (handler *UserHandler) SigninGame(c *gin.Context) {
 	req.User = c.PostForm("user")
 	req.Password = c.PostForm("password")
 	isTest := c.PostForm("isTest")
-	req.IsTest = isTest == "1"
+	req.IsTest = isTest == "true"
 	req.Mode = c.PostForm("mode")
 	req.TableID = c.PostForm("tableid")
 	req.Site = c.PostForm("site")

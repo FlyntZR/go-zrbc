@@ -286,7 +286,7 @@ func (srv *userService) SigninGame(ctx context.Context, req *view.SigninGameReq)
 	}
 
 	// Process UI settings
-	req.UI = processUI(req.UI)
+	ui := strconv.Itoa(processUI(req.UI))
 
 	langInt, err := strconv.Atoi(req.Lang)
 	if err != nil {
@@ -337,11 +337,11 @@ func (srv *userService) SigninGame(ctx context.Context, req *view.SigninGameReq)
 	var gameURL string
 	if req.IsTest {
 		if req.Mode != "" {
-			if req.UI != 0 {
+			if len(ui) != 0 {
 				if avResp.Agent.VendorID == "bbinapi" || avResp.Agent.VendorID == "bbtest" || avResp.Agent.VendorID == "bbintwapi" {
-					gameURL = fmt.Sprintf("%s?#sid=ANONYMOUS%s%s&ui=%d%s", baseURL, modeParam, muteParam, req.UI, LanguageMap[langInt])
+					gameURL = fmt.Sprintf("%s?#sid=ANONYMOUS%s%s&ui=%s%s", baseURL, modeParam, muteParam, ui, LanguageMap[langInt])
 				} else {
-					gameURL = fmt.Sprintf("%s?sid=ANONYMOUS%s%s&ui=%d%s", baseURL, modeParam, muteParam, req.UI, LanguageMap[langInt])
+					gameURL = fmt.Sprintf("%s?sid=ANONYMOUS%s%s&ui=%s%s", baseURL, modeParam, muteParam, ui, LanguageMap[langInt])
 				}
 			} else {
 				if avResp.Agent.VendorID == "bbinapi" || avResp.Agent.VendorID == "bbtest" || avResp.Agent.VendorID == "bbintwapi" {
@@ -351,11 +351,11 @@ func (srv *userService) SigninGame(ctx context.Context, req *view.SigninGameReq)
 				}
 			}
 		} else {
-			if req.UI != 0 {
+			if len(ui) != 0 {
 				if avResp.Agent.VendorID == "bbinapi" || avResp.Agent.VendorID == "bbtest" || avResp.Agent.VendorID == "bbintwapi" {
-					gameURL = fmt.Sprintf("%s?#sid=ANONYMOUS&ui=%s%d%s", baseURL, muteParam, req.UI, LanguageMap[langInt])
+					gameURL = fmt.Sprintf("%s?#sid=ANONYMOUS&ui=%s%s%s", baseURL, muteParam, ui, LanguageMap[langInt])
 				} else {
-					gameURL = fmt.Sprintf("%s?sid=ANONYMOUS&ui=%s%d%s", baseURL, muteParam, req.UI, LanguageMap[langInt])
+					gameURL = fmt.Sprintf("%s?sid=ANONYMOUS&ui=%s%s%s", baseURL, muteParam, ui, LanguageMap[langInt])
 				}
 			} else {
 				if avResp.Agent.VendorID == "bbinapi" || avResp.Agent.VendorID == "bbtest" || avResp.Agent.VendorID == "bbintwapi" {
@@ -416,17 +416,17 @@ func (srv *userService) SigninGame(ctx context.Context, req *view.SigninGameReq)
 			memLoginSID = sid
 		}
 
-		if req.UI != 0 && req.Mode != "" {
+		if len(ui) != 0 && req.Mode != "" {
 			if avResp.Agent.VendorID == "bbinapi" || avResp.Agent.VendorID == "bbtest" || avResp.Agent.VendorID == "bbintwapi" {
-				gameURL = fmt.Sprintf("%s?#sid=%s%s%s&ui=%d%s", baseURL, memLoginSID, modeParam, muteParam, req.UI, LanguageMap[langInt])
+				gameURL = fmt.Sprintf("%s?#sid=%s%s%s&ui=%s%s", baseURL, memLoginSID, modeParam, muteParam, ui, LanguageMap[langInt])
 			} else {
-				gameURL = fmt.Sprintf("%s?sid=%s%s%s&ui=%d%s", baseURL, memLoginSID, modeParam, muteParam, req.UI, LanguageMap[langInt])
+				gameURL = fmt.Sprintf("%s?sid=%s%s%s&ui=%s%s", baseURL, memLoginSID, modeParam, muteParam, ui, LanguageMap[langInt])
 			}
-		} else if req.UI != 0 && req.Mode == "" {
+		} else if len(ui) != 0 && req.Mode == "" {
 			if avResp.Agent.VendorID == "bbinapi" || avResp.Agent.VendorID == "bbtest" || avResp.Agent.VendorID == "bbintwapi" {
-				gameURL = fmt.Sprintf("%s?#sid=%s%s&ui=%d%s", baseURL, memLoginSID, muteParam, req.UI, LanguageMap[langInt])
+				gameURL = fmt.Sprintf("%s?#sid=%s%s&ui=%s%s", baseURL, memLoginSID, muteParam, ui, LanguageMap[langInt])
 			} else {
-				gameURL = fmt.Sprintf("%s?sid=%s%s&ui=%d%s", baseURL, memLoginSID, muteParam, req.UI, LanguageMap[langInt])
+				gameURL = fmt.Sprintf("%s?sid=%s%s&ui=%s%s", baseURL, memLoginSID, muteParam, ui, LanguageMap[langInt])
 			}
 		} else if req.Mode != "" {
 			if avResp.Agent.VendorID == "bbinapi" || avResp.Agent.VendorID == "bbtest" || avResp.Agent.VendorID == "bbintwapi" {
@@ -441,14 +441,6 @@ func (srv *userService) SigninGame(ctx context.Context, req *view.SigninGameReq)
 				gameURL = fmt.Sprintf("%s?sid=%s%s%s", baseURL, memLoginSID, muteParam, LanguageMap[langInt])
 			}
 		}
-
-		if req.ReturnURL != "" {
-			gameURL += "&returnurl=" + req.ReturnURL
-		}
-
-		return &view.SigninGameResp{
-			GameURL: gameURL,
-		}, nil
 	} else {
 		xlog.Debug("newMemLogin is nil")
 		if req.Mode != "" {
@@ -477,6 +469,11 @@ func (srv *userService) SigninGame(ctx context.Context, req *view.SigninGameReq)
 	}
 	if req.Video == "off" {
 		gameURL += "&video=" + req.Video
+	}
+	if avResp.AgentsLoginPass.Co != "" {
+		gameURL += "&co=" + avResp.AgentsLoginPass.Co
+	} else {
+		gameURL += "&co=wm"
 	}
 
 	return &view.SigninGameResp{
