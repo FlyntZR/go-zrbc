@@ -133,16 +133,16 @@ func (srv *userService) validateRequest(user, password string, isTest bool) erro
 	return nil
 }
 
-func processUI(ui string) string {
+func processUI(ui int) int {
 	switch ui {
-	case "1", "2":
-		return "MODERN"
-	case "4":
-		return "CUSTOM_4"
-	case "5":
-		return "CUSTOM_5"
+	case 1, 2:
+		return 2
+	case 4:
+		return 4
+	case 5:
+		return 5
 	default:
-		return "DEFAULT"
+		return 0
 	}
 }
 
@@ -290,7 +290,7 @@ func (srv *userService) SigninGame(ctx context.Context, req *view.SigninGameReq)
 		"sid":       session.SID,
 		"mode":      req.Mode,
 		"tableid":   req.TableID,
-		"ui":        req.UI,
+		"ui":        strconv.Itoa(req.UI),
 		"mute":      req.Mute,
 		"lang":      req.Lang,
 		"width":     req.Width,

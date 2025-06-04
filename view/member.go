@@ -132,7 +132,7 @@ type SigninGameReq struct {
 	// in:formData
 	Size string `form:"size" json:"size"`
 	// in:formData
-	UI string `form:"ui" json:"ui"`
+	UI int `form:"ui" json:"ui"`
 	// in:formData
 	Mute string `form:"mute" json:"mute"`
 	// in:formData

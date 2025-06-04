@@ -7,6 +7,7 @@ import (
 	"go-zrbc/pkg/xlog"
 	service "go-zrbc/service/user"
 	"go-zrbc/view"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -63,6 +64,18 @@ func (handler *UserHandler) SigninGame(c *gin.Context) {
 	req.TableID = c.PostForm("tableid")
 	req.Site = c.PostForm("site")
 	req.GameType = c.PostForm("gameType")
+	req.Width = c.PostForm("width")
+	req.ReturnURL = c.PostForm("returnurl")
+	req.Size = c.PostForm("size")
+	ui, err := strconv.Atoi(c.PostForm("ui"))
+	if err != nil {
+		commonresp.ErrResp(c, err)
+		return
+	}
+	req.UI = ui
+	req.Mute = c.PostForm("mute")
+	req.Video = c.PostForm("video")
+
 	xlog.Debugf("SigninGame req: %+v", &req)
 	resp, err := handler.srv.SigninGame(context.TODO(), &req)
 	if err != nil {
