@@ -10,6 +10,7 @@ import (
 type UserDao interface {
 	QueryByID(tx *gorm.DB, id int64) (*Member, error)
 	QueryByAccountAndPwd(tx *gorm.DB, account, passwd string) (*Member, error)
+	QueryByAccount(tx *gorm.DB, account string) (*Member, error)
 	CreateUser(tx *gorm.DB, member *Member) (int64, error)
 	DeleteByID(tx *gorm.DB, uniqueID int64) error
 	UpdateMember(tx *gorm.DB, ysUser *Member) error
@@ -34,6 +35,15 @@ func (dao *userDao) QueryByID(tx *gorm.DB, id int64) (*Member, error) {
 func (dao *userDao) QueryByAccountAndPwd(tx *gorm.DB, account, passwd string) (*Member, error) {
 	ret := Member{}
 	err := tx.Where("mem002 = ? AND mem003 = ?", account, passwd).First(&ret).Error
+	if err != nil {
+		return nil, err
+	}
+	return &ret, nil
+}
+
+func (dao *userDao) QueryByAccount(tx *gorm.DB, account string) (*Member, error) {
+	ret := Member{}
+	err := tx.Where("mem002 = ?", account).First(&ret).Error
 	if err != nil {
 		return nil, err
 	}

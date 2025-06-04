@@ -100,3 +100,47 @@ type GetUserInfoReq struct {
 type GetUserInfoResp struct {
 	User *Member `json:"data"`
 }
+
+// swagger:parameters SigninGame
+type SigninGameReq struct {
+	// in:formData
+	User string `form:"user" json:"user"`
+	// in:formData
+	Device string `form:"device" json:"device"`
+	// in:formData
+	Lang string `form:"lang" json:"lang"`
+	// in:formData
+	IsTest bool `form:"isTest" json:"isTest"`
+	// in:formData
+	Mode string `form:"mode" json:"mode"`
+	// in:formData
+	TableID string `form:"tableid" json:"tableid"`
+	// in:formData
+	Site string `form:"site" json:"site"`
+	// in:formData
+	Password string `form:"password" json:"password"`
+	// in:formData
+	GameType string `form:"gameType" json:"gameType"`
+	// in:formData
+	Width string `form:"width" json:"width"`
+	// in:formData
+	ReturnURL string `form:"returnurl" json:"returnurl"`
+	// in:formData
+	Size string `form:"size" json:"size"`
+	// in:formData
+	UI string `form:"ui" json:"ui"`
+	// in:formData
+	Mute string `form:"mute" json:"mute"`
+	// in:formData
+	Video string `form:"video" json:"video"`
+}
+
+// swagger:model
+type Session struct {
+	SID string
+}
+
+// swagger:model
+type SigninGameResp struct {
+	GameURL string `json:"gameURL"`
+}

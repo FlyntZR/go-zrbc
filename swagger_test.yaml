@@ -326,6 +326,19 @@ definitions:
                 x-go-name: Winlossprompt
         type: object
         x-go-package: go-zrbc/view
+    Session:
+        properties:
+            SID:
+                type: string
+        type: object
+        x-go-package: go-zrbc/view
+    SigninGameResp:
+        properties:
+            gameURL:
+                type: string
+                x-go-name: GameURL
+        type: object
+        x-go-package: go-zrbc/view
     TokenUser:
         properties:
             id:
@@ -458,6 +471,82 @@ paths:
                     $ref: '#/responses/CommonError'
             tags:
                 - S3接口
+    /v1/signin_game:
+        post:
+            consumes:
+                - multipart/form-data
+            description: 开游戏
+            operationId: SigninGame
+            parameters:
+                - in: formData
+                  name: user
+                  type: string
+                  x-go-name: User
+                - in: formData
+                  name: device
+                  type: string
+                  x-go-name: Device
+                - in: formData
+                  name: lang
+                  type: string
+                  x-go-name: Lang
+                - in: formData
+                  name: isTest
+                  type: boolean
+                  x-go-name: IsTest
+                - in: formData
+                  name: mode
+                  type: string
+                  x-go-name: Mode
+                - in: formData
+                  name: tableid
+                  type: string
+                  x-go-name: TableID
+                - in: formData
+                  name: site
+                  type: string
+                  x-go-name: Site
+                - in: formData
+                  name: password
+                  type: string
+                  x-go-name: Password
+                - in: formData
+                  name: gameType
+                  type: string
+                  x-go-name: GameType
+                - in: formData
+                  name: width
+                  type: string
+                  x-go-name: Width
+                - in: formData
+                  name: returnurl
+                  type: string
+                  x-go-name: ReturnURL
+                - in: formData
+                  name: size
+                  type: string
+                  x-go-name: Size
+                - in: formData
+                  name: ui
+                  type: string
+                  x-go-name: UI
+                - in: formData
+                  name: mute
+                  type: string
+                  x-go-name: Mute
+                - in: formData
+                  name: video
+                  type: string
+                  x-go-name: Video
+            responses:
+                "200":
+                    description: SigninGameResp
+                    schema:
+                        $ref: '#/definitions/SigninGameResp'
+                "500":
+                    $ref: '#/responses/CommonError'
+            tags:
+                - 用户接口
     /v1/time_ts:
         get:
             description: 获取当前时间戳
@@ -547,7 +636,7 @@ paths:
                 - S3接口
     /v1/user_info:
         get:
-            description: 获取会员列表
+            description: 获取用户信息
             operationId: GetUserInfo
             parameters:
                 - in: header
