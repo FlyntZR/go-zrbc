@@ -216,62 +216,6 @@ func (srv *userService) getWechatURL() (string, error) {
 	return urlData.URL, nil
 }
 
-func (srv *userService) buildGameURL(baseURL string, params map[string]string, agent *view.Agent) string {
-	vendorID := agent.VendorID
-	urlParams := make([]string, 0)
-
-	// Add SID
-	if vendorID == "bbinapi" || vendorID == "bbtest" || vendorID == "bbintwapi" {
-		urlParams = append(urlParams, "#sid="+params["sid"])
-	} else {
-		urlParams = append(urlParams, "sid="+params["sid"])
-	}
-
-	// Add other parameters
-	if params["mode"] != "" {
-		urlParams = append(urlParams, "mode="+params["mode"])
-		if params["tableid"] != "" {
-			urlParams = append(urlParams, "tableid="+params["tableid"])
-		}
-	}
-
-	// Add optional parameters
-	optionalParams := []string{"ui", "mute", "lang", "returnurl"}
-	for _, param := range optionalParams {
-		if params[param] != "" {
-			urlParams = append(urlParams, param+"="+params[param])
-		}
-	}
-
-	if params["width"] != "" {
-		urlParams = append(urlParams, "checkWidth=deviceWidth")
-	}
-	if params["size"] != "" {
-		urlParams = append(urlParams, "size=1")
-	}
-	if params["video"] == "off" {
-		urlParams = append(urlParams, "video=off")
-	}
-
-	// Add company code
-	loginPass, err := srv.agentsLoginPassDao.GetLoginPassByVendor(srv.DB(), vendorID)
-	co := "wm"
-	if err == nil && loginPass["co"] != "" {
-		co = loginPass["co"]
-	}
-	urlParams = append(urlParams, "co="+co)
-
-	return fmt.Sprintf("%s?%s", baseURL, strings.Join(urlParams, "&"))
-}
-
-// login handles user authentication and session creation
-func (srv *userService) login(username, password string) (*view.Session, error) {
-	// In a real implementation, this would integrate with your authentication system
-	// For now, we'll create a simple session
-	sid := fmt.Sprintf("session_%d", time.Now().Unix())
-	return &view.Session{SID: sid}, nil
-}
-
 // GetClientIP gets the client IP from the gin context
 func GetClientIP(c *gin.Context) string {
 	// Try to get IP from X-Real-IP header
@@ -435,7 +379,7 @@ func (srv *userService) SigninGame(ctx context.Context, req *view.SigninGameReq)
 		return nil, err
 	}
 	ulv, utp := strconv.Itoa(mem.Mem006), "M"
-	sid := utils.ProSIDCreate(config.Global.Wcode, mem.User, ulv, utp, config.Global.SidLen)
+	sid := utils.ProSIDCreate(config.Global.Wcode, ulv, utp, mem.ID, config.Global.SidLen)
 	var newMemLogin *db.MemLogin
 	switch ulvInt, _ := strconv.Atoi(ulv); ulvInt {
 	case 0:
@@ -464,6 +408,7 @@ func (srv *userService) SigninGame(ctx context.Context, req *view.SigninGameReq)
 	}
 
 	if newMemLogin != nil {
+		xlog.Debug("newMemLogin is not nil")
 		memLoginSID := ""
 		if newMemLogin != nil && newMemLogin.Mlg003 != "" {
 			memLoginSID = newMemLogin.Mlg003
@@ -505,7 +450,7 @@ func (srv *userService) SigninGame(ctx context.Context, req *view.SigninGameReq)
 			GameURL: gameURL,
 		}, nil
 	} else {
-		// Handle URL construction for non-member login case
+		xlog.Debug("newMemLogin is nil")
 		if req.Mode != "" {
 			if avResp.Agent.VendorID == "bbinapi" || avResp.Agent.VendorID == "bbtest" || avResp.Agent.VendorID == "bbintwapi" {
 				gameURL = fmt.Sprintf("%s?#sid=%s%s%s%s", baseURL, sid, modeParam, muteParam, LanguageMap[langInt])

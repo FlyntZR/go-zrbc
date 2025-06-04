@@ -25,13 +25,14 @@ type SIDInfo struct {
 // ulv: user level
 // utp: user type
 // sidlen: SID string length (default 13)
-func ProSIDCreate(wcode, uid string, ulv, utp string, sidlen int) string {
+func ProSIDCreate(wcode, ulv, utp string, uid int64, sidlen int) string {
 	if sidlen == 0 {
 		sidlen = 13
 	}
 
+	uidStr := strconv.FormatInt(uid, 10)
 	wlen := len(wcode)
-	ilen := len(uid)
+	ilen := len(uidStr)
 	llen := len(ulv)
 	tlen := len(utp)
 
@@ -71,7 +72,7 @@ func ProSIDCreate(wcode, uid string, ulv, utp string, sidlen int) string {
 		wcode,
 		utp,
 		ulv,
-		uid)
+		uidStr)
 
 	return MixSID(strings.ToUpper(sid))
 }

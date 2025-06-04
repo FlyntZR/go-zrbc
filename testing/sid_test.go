@@ -2,6 +2,7 @@ package main
 
 import (
 	"go-zrbc/pkg/utils"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -17,7 +18,7 @@ func TestDismantSID(t *testing.T) {
 	}
 
 	// Test case 2: Valid SID
-	sid := "8813C3F6G80001A1688M794132" // Last digit 7 indicates first part length is 7
+	sid := "07412C2D20012A168M79413" // Last digit 7 indicates first part length is 7
 	info, err = utils.DismantSID(sid, 4)
 	if err != nil {
 		t.Errorf("Failed to dismant SID: %v", err)
@@ -48,12 +49,12 @@ func TestDismantSID(t *testing.T) {
 func TestProSIDCreate(t *testing.T) {
 	// Test case 1: Basic SID creation
 	wcode := "a168"
-	uid := "7941388"
+	uid := int64(7941388)
 	ulv := "M"
 	utp := "8"
 	sidlen := 13
 
-	sid := utils.ProSIDCreate(wcode, uid, ulv, utp, sidlen)
+	sid := utils.ProSIDCreate(wcode, ulv, utp, uid, sidlen)
 
 	// Test if SID is not empty
 	if sid == "" {
@@ -76,8 +77,8 @@ func TestProSIDCreate(t *testing.T) {
 	if info.Website != strings.ToLower(wcode) {
 		t.Errorf("Expected website code %s, got %s", strings.ToLower(wcode), info.Website)
 	}
-	if info.Uid != uid {
-		t.Errorf("Expected uid %s, got %s", uid, info.Uid)
+	if info.Uid != strconv.FormatInt(uid, 10) {
+		t.Errorf("Expected uid %d, got %s", uid, info.Uid)
 	}
 	if info.Ulv != ulv {
 		t.Errorf("Expected ulv %s, got %s", ulv, info.Ulv)
@@ -87,7 +88,7 @@ func TestProSIDCreate(t *testing.T) {
 	}
 
 	// Test case 2: SID with default length (when sidlen = 0)
-	sid2 := utils.ProSIDCreate(wcode, uid, ulv, utp, 0)
+	sid2 := utils.ProSIDCreate(wcode, ulv, utp, uid, 0)
 	if sid2 == "" {
 		t.Error("Generated SID with default length should not be empty")
 	}
