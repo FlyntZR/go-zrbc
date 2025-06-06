@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"go-zrbc/config"
@@ -146,21 +147,22 @@ func (srv *userService) GetUserByAccountAndPwd(ctx context.Context, account, pwd
 	return &resp, nil
 }
 
-func (srv *userService) GetUserByAccount(ctx context.Context, account string) (*view.Member, error) {
+func (srv *userService) GetUserByAccount(ctx context.Context, account string) (*view.MemberCache, error) {
 	var ret *db.Member
 	var err error
 
-	// // First try to get user info from Redis
-	// userInfoJSON, err := srv.redisCli.HGet(ctx, "user", account).Result()
-	// if err == nil && userInfoJSON != "" {
-	// 	// User info found in Redis
-	// 	var mem view.Member
-	// 	if err := json.Unmarshal([]byte(userInfoJSON), &mem); err == nil {
-	// 		return &mem, nil
-	// 	}
-	// 	// If unmarshal fails, continue with DB query
-	// 	xlog.Warnf("Failed to unmarshal user info from Redis: %v", err)
-	// }
+	// First try to get user info from Redis
+	userInfoJSON, err := srv.redisCli.HGet(ctx, "user", account).Result()
+	if err == nil && userInfoJSON != "" {
+		// User info found in Redis
+		var mem view.MemberCache
+		if err := json.Unmarshal([]byte(userInfoJSON), &mem); err == nil {
+			xlog.Debugf("debug to unmarshal user info from Redis, userInfoJSON:%s, mem:%+v", userInfoJSON, mem)
+			return &mem, nil
+		}
+		// If unmarshal fails, continue with DB query
+		xlog.Warnf("Failed to unmarshal user info from Redis: %v", err)
+	}
 
 	// If not found in Redis or error occurred, query from database
 	err = srv.Tx(func(tx *gorm.DB) error {
@@ -174,19 +176,19 @@ func (srv *userService) GetUserByAccount(ctx context.Context, account string) (*
 	if err != nil {
 		return nil, err
 	}
-	mem := DBToViewUser(ret)
-	// // Store user information in Redis
-	// var userRedisData []byte
-	// var marshalErr error
-	// userRedisData, marshalErr = json.Marshal(mem)
-	// if marshalErr != nil {
-	// 	xlog.Warnf("Failed to marshal user info for Redis: %v", marshalErr)
-	// } else {
-	// 	redisErr := srv.redisCli.HSet(ctx, "user", account, string(userRedisData)).Err()
-	// 	if redisErr != nil {
-	// 		xlog.Warnf("Failed to store user info in Redis: %v", redisErr)
-	// 	}
-	// }
+	mem := DBToViewUserCache(ret)
+	// Store user information in Redis
+	var userRedisData []byte
+	var marshalErr error
+	userRedisData, marshalErr = json.Marshal(mem)
+	if marshalErr != nil {
+		xlog.Warnf("Failed to marshal user info for Redis: %v", marshalErr)
+	} else {
+		redisErr := srv.redisCli.HSet(ctx, "user", account, string(userRedisData)).Err()
+		if redisErr != nil {
+			xlog.Warnf("Failed to store user info in Redis: %v", redisErr)
+		}
+	}
 
 	return mem, nil
 }
@@ -423,12 +425,18 @@ func (srv *userService) SigninGame(ctx context.Context, req *view.SigninGameReq)
 
 	mem, err := srv.GetUserByAccount(ctx, req.User)
 	if err != nil {
-		xlog.Errorf("error to get user by account, err:%+v", err)
+		xlog.Errorf("error to get user by account, account:%s, err:%+v", req.User, err)
 		return nil, err
 	}
 	xlog.Debugf("mem:%+v", mem)
-	ulv, utp := strconv.Itoa(mem.Mem006), "M"
-	sid := utils.ProSIDCreate(config.Global.Wcode, ulv, utp, mem.ID, config.Global.SidLen)
+	ulv, utp := strconv.Itoa(mem.ULV), mem.UTP
+	sid := utils.ProSIDCreate(config.Global.Wcode, ulv, utp, mem.UID, config.Global.SidLen)
+
+	// Set cookie with 18 hour expiration
+	cookieTime := time.Now().Add(18 * time.Hour)
+	ginCtx := ctx.(*gin.Context)
+	ginCtx.SetCookie(strings.ToUpper(config.Global.Wcode)+"[1]", sid, int(time.Until(cookieTime).Seconds()), "/", ginCtx.Request.Host, false, true)
+
 	var newMemLogin *db.MemLogin
 	switch ulvInt, _ := strconv.Atoi(ulv); ulvInt {
 	case 0:
@@ -438,11 +446,11 @@ func (srv *userService) SigninGame(ctx context.Context, req *view.SigninGameReq)
 	case 7:
 		now := time.Now()
 		err = srv.Tx(func(tx *gorm.DB) error {
-			newMemLogin, err = srv.memLoginDao.CreateOrUpdateMemLogin(tx, mem.ID, 0, sid, GetClientIP(ctx.(*gin.Context)), now)
+			newMemLogin, err = srv.memLoginDao.CreateOrUpdateMemLogin(tx, mem.UID, 0, sid, GetClientIP(ctx.(*gin.Context)), now)
 			if err != nil {
 				return err
 			}
-			if err := srv.userDao.UpdatesMember(tx, mem.ID, map[string]interface{}{
+			if err := srv.userDao.UpdatesMember(tx, mem.UID, map[string]interface{}{
 				"mem013": now,
 				"mem014": GetClientIP(ctx.(*gin.Context)),
 			}); err != nil {

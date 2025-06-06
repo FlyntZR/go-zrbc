@@ -312,8 +312,17 @@ func connect_ws_betting_15101(ch chan string) {
 				if wsData.Protocol == 0 {
 					log.Printf("15101 登录成功: %s", message)
 				} else if wsData.Protocol == 22 {
-					log.Printf("15101 投注成功回复: %s", message)
-					recvBetFlag = true
+					var WsBettingResp view.WsBettingResp
+					err = json.Unmarshal(message, &WsBettingResp)
+					if err != nil {
+						log.Fatal("Error Unmarshal to ", err)
+					}
+					if WsBettingResp.Data.GroupID != 3 {
+						continue
+					} else {
+						log.Printf("15101 投注成功回复: %s", message)
+						recvBetFlag = true
+					}
 				} else if wsData.Protocol == 25 {
 					log.Printf("15101 得到一局结果: %s", message)
 				} else if wsData.Protocol == 31 {
@@ -322,7 +331,6 @@ func connect_ws_betting_15101(ch chan string) {
 					log.Printf("15101 进入桌台成功: %s", message)
 					joinTableFlag = true
 				} else if wsData.Protocol == 38 {
-					log.Printf("15101 得到下注时间剩余秒数: %s", message)
 					var wsBetTimeResp view.WsBetTimeResp
 					err = json.Unmarshal(message, &wsBetTimeResp)
 					if err != nil {
@@ -331,6 +339,7 @@ func connect_ws_betting_15101(ch chan string) {
 					if wsBetTimeResp.Data.GroupID != 3 {
 						continue
 					}
+					log.Printf("15101 得到下注时间剩余秒数: %s", message)
 					if firstTwentyOneFlag {
 						firstTwentyOneFlag = false
 						err = c.WriteMessage(websocket.TextMessage, []byte(`{"protocol":10,"data":{"dtBetLimitSelectID":{"101":124,"102":125,"103":9,"104":126,"105":127,"106":128,"107":129,"108":149,"110":131,"111":150,"112":250,"113":251,"117":260,"121":261,"125":600,"126":599,"128":584,"129":602,"301":29},"groupID":3}}`))

@@ -118,3 +118,18 @@ type WsBetTimeResp struct {
 	Protocol int           `json:"protocol"`
 	Data     WsBetTimeData `json:"data"`
 }
+
+// WsYsChannalRespData represents the data field in the channel response
+type WsBettingRespData struct {
+	GameID   int  `json:"gameID"`
+	GroupID  int  `json:"groupID"`
+	AreaID   int  `json:"areaID"`
+	AreaType int  `json:"areaType"`
+	BOk      bool `json:"bOk"`
+}
+
+// WsYsChannalRespData represents the data field in the channel response
+type WsBettingResp struct {
+	Protocol int               `json:"protocol"`
+	Data     WsBettingRespData `json:"data"`
+}

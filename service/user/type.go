@@ -60,6 +60,27 @@ func DBToViewUser(dUser *db.Member) *view.Member {
 	return &vUser
 }
 
+func DBToViewUserCache(dUser *db.Member) *view.MemberCache {
+	vUser := view.MemberCache{
+		UID:      dUser.ID,
+		Account:  dUser.User,
+		Password: dUser.Password,
+		Enable:   dUser.Mem016,
+		Mem007:   dUser.Mem007,
+		Mem008:   dUser.Mem008,
+		Mem009:   dUser.Mem009,
+		Mem010:   dUser.Mem010,
+		Mem011:   dUser.Mem011,
+		SN:       dUser.Mem011,
+		Name:     dUser.UserName,
+		ULV:      dUser.Mem006,
+		ENS:      dUser.Mem016,
+		LogFail:  dUser.Mem015,
+		UTP:      "M",
+	}
+	return &vUser
+}
+
 func DBToViewAgent(dAgent *db.Agent) *view.Agent {
 	vAgent := view.Agent{
 		ID:           dAgent.Age001,

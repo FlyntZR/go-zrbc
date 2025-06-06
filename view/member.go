@@ -4,6 +4,25 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+// MemberInfo represents the member information from JSON data
+type MemberCache struct {
+	UID      int64  `json:"uid"`
+	Account  string `json:"acco"`
+	Password string `json:"pswd"`
+	Enable   string `json:"enable"`
+	Mem007   int    `json:"mem007"`
+	Mem008   int    `json:"mem008"`
+	Mem009   int    `json:"mem009"`
+	Mem010   int    `json:"mem010"`
+	Mem011   int    `json:"mem011"`
+	SN       int    `json:"sn"`
+	Name     string `json:"name"`
+	ULV      int    `json:"ulv"`
+	ENS      string `json:"ens"`
+	LogFail  int    `json:"logfail"`
+	UTP      string `json:"utp"`
+}
+
 // swagger:model
 type Member struct {
 	// 主键
