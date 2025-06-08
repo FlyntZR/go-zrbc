@@ -12,6 +12,18 @@ type Agent struct {
 	Password string `json:"-"`
 	// 创建时间
 	CreatedAt int64 `json:"createdAt"`
+	// 等级
+	ULV int `json:"ulv"`
+	// 上级代理商ID
+	Age007 int64 `json:"age007"`
+	// 上级代理商ID
+	Age008 int64 `json:"age008"`
+	// 上级代理商ID
+	Age009 int64 `json:"age009"`
+	// 上级代理商ID
+	Age010 int64 `json:"age010"`
+	// 上级代理商ID
+	Age011 int64 `json:"age011"`
 	// 风险重置开关
 	RiskReset int `json:"riskReset"`
 	// 启停用状态
@@ -70,6 +82,10 @@ type Agent struct {
 	ChkLock string `json:"chkLock"`
 	// 上次修改密码时间
 	LastChpsw int64 `json:"lastChpsw"`
+	// 启停用状态
+	Age015 string `json:"age015"`
+	// 启停押状态
+	Age016 string `json:"age016"`
 }
 
 //swagger:model

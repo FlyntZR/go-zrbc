@@ -11,6 +11,8 @@ import (
 	"go-zrbc/pkg/xlog"
 	"go-zrbc/service"
 	"go-zrbc/view"
+	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -18,8 +20,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
-
-	commonresp "go-zrbc/pkg/http/response"
+	"github.com/shopspring/decimal"
 
 	"gorm.io/gorm"
 )
@@ -56,12 +57,29 @@ var LanguageMap = map[int]string{
 	10: "&lang=" + LangSpanish,
 }
 
+var ChipsMap = map[int]string{
+	17: "10000,50000,100000,1000000,5000000",
+	18: "1000,10000,100000,200000,1000000",
+}
+
+var ChipsCheck = []int{1, 5, 10, 20, 50, 100, 500, 1000, 5000, 10000, 20000, 50000, 100000, 200000, 1000000, 5000000, 10000000, 20000000, 50000000, 10000000, 20000000, 50000000, 100000000}
+
 type UserService interface {
 	//用户信息
 	GetUserInfo(ctx context.Context, userID int64) (*view.GetUserInfoResp, error)
 	GetUserByAccountAndPwd(ctx context.Context, account, pwd string) (*view.GetUserInfoResp, error)
 	SigninGame(ctx context.Context, req *view.SigninGameReq) (*view.SigninGameResp, error)
+	MemberRegister(ctx context.Context, req *view.MemberRegisterReq) (*view.MemberRegisterResp, error)
 	AgentVerify(ctx context.Context, req *view.AgentVerifyReq) (*view.AgentVerifyResp, error)
+}
+
+type MemDtlDao interface {
+	QueryByMemberID(tx *gorm.DB, memberID int64) ([]*db.MemberDtl, error)
+}
+
+type BetLimitDefaultDao interface {
+	QueryAll(tx *gorm.DB) ([]*db.BetLimitDefault, error)
+	QueryByGtype(tx *gorm.DB, gtype int) ([]*db.BetLimitDefault, error)
 }
 
 type userService struct {
@@ -71,6 +89,11 @@ type userService struct {
 	agentsLoginPassDao db.AgentsLoginPassDao
 	agentDao           db.AgentDao
 	memLoginDao        db.MemLoginDao
+	bet02Dao           db.Bet02Dao
+	agentDtlDao        db.AgentDtlDao
+	betLimitDefaultDao db.BetLimitDefaultDao
+	memDtlDao          db.MemberDtlDao
+	gameTypeDao        db.GameTypeDao
 
 	s3Client *s3.Client
 	redisCli *redis.Client
@@ -85,6 +108,11 @@ func NewUserService(
 	agentsLoginPassDao db.AgentsLoginPassDao,
 	agentDao db.AgentDao,
 	memLoginDao db.MemLoginDao,
+	bet02Dao db.Bet02Dao,
+	agentDtlDao db.AgentDtlDao,
+	betLimitDefaultDao db.BetLimitDefaultDao,
+	memDtlDao db.MemberDtlDao,
+	gameTypeDao db.GameTypeDao,
 
 	s3Client *s3.Client,
 	redisCli *redis.Client,
@@ -96,6 +124,11 @@ func NewUserService(
 		agentsLoginPassDao: agentsLoginPassDao,
 		agentDao:           agentDao,
 		memLoginDao:        memLoginDao,
+		bet02Dao:           bet02Dao,
+		agentDtlDao:        agentDtlDao,
+		betLimitDefaultDao: betLimitDefaultDao,
+		memDtlDao:          memDtlDao,
+		gameTypeDao:        gameTypeDao,
 
 		s3Client: s3Client,
 		redisCli: redisCli,
@@ -196,22 +229,22 @@ func (srv *userService) GetUserByAccount(ctx context.Context, account string) (*
 func (srv *userService) validateRequest(user, password string, isTest bool) error {
 	if !isTest {
 		if password == "" {
-			return commonresp.ErrUserPWDEmpty
+			return utils.ErrInvalidPasswordEmpty
 		}
 		if user == "" {
-			return commonresp.ErrUserEmpty
+			return utils.ErrInvalidAccountEmpty
 		}
 
 		mem, err := srv.userDao.QueryByAccount(srv.DB(), user)
 		if err == gorm.ErrRecordNotFound {
-			return commonresp.ErrUserNotExist
+			return utils.ErrParamInvalidAccountNotExist
 		}
-		if err != err {
+		if err != nil {
 			return err
 		}
 
 		if mem.Password != password {
-			return commonresp.ErrUserPWD
+			return utils.ErrParamInvalidAccountPasswordError
 		}
 	}
 	return nil
@@ -285,6 +318,10 @@ func GetClientIP(c *gin.Context) string {
 }
 
 func (srv *userService) SigninGame(ctx context.Context, req *view.SigninGameReq) (*view.SigninGameResp, error) {
+	if err := utils.CheckTimestamp(req.Timestamp); err != nil {
+		xlog.Errorf("error to check timestamp, err:%+v", err)
+		return nil, err
+	}
 	avResp, err := srv.AgentVerify(ctx, &view.AgentVerifyReq{VendorID: req.VendorID, Signature: req.Signature})
 	if err != nil {
 		xlog.Errorf("error to verify agent, err:%+v", err)
@@ -419,7 +456,7 @@ func (srv *userService) SigninGame(ctx context.Context, req *view.SigninGameReq)
 			gameURL += "&returnurl=" + req.ReturnURL
 		}
 		return &view.SigninGameResp{
-			GameURL: gameURL,
+			Result: gameURL,
 		}, nil
 	}
 
@@ -534,16 +571,20 @@ func (srv *userService) SigninGame(ctx context.Context, req *view.SigninGameReq)
 	}
 
 	return &view.SigninGameResp{
-		GameURL: gameURL,
+		Result: gameURL,
 	}, nil
 }
 
 func (srv *userService) AgentVerify(ctx context.Context, req *view.AgentVerifyReq) (*view.AgentVerifyResp, error) {
 	// Validate request parameters
 	if req.VendorID == "" && req.Signature == "" {
-		err := errors.New("vendor id or signature is empty")
-		xlog.Error(err)
-		return nil, err
+		return nil, utils.ErrAgentIDAndSignatureFormatError
+	}
+	if req.VendorID == "" {
+		return nil, utils.ErrAgentIDEmpty
+	}
+	if req.Signature == "" {
+		return nil, utils.ErrAgentSignatureEmpty
 	}
 	var err error
 	var agent *db.Agent
@@ -552,7 +593,7 @@ func (srv *userService) AgentVerify(ctx context.Context, req *view.AgentVerifyRe
 		agent, err = srv.agentDao.QueryByVendorID(srv.DB(), req.VendorID)
 		if err != nil {
 			xlog.Errorf("error to query agent by vendor id:%s, err:%+v", req.VendorID, err)
-			return err
+			return utils.ErrAgentIDNotExist
 		}
 		agentsLoginPass, err = srv.agentsLoginPassDao.QueryByAidAndVendorID(tx, agent.Age001, req.VendorID)
 		if err != nil {
@@ -565,7 +606,7 @@ func (srv *userService) AgentVerify(ctx context.Context, req *view.AgentVerifyRe
 		return nil, err
 	}
 	if agentsLoginPass.Signature != req.Signature {
-		err := errors.New("invalid signature")
+		err := utils.ErrAgentIDExistButSignatureError
 		xlog.Error(err)
 		return nil, err
 	}
@@ -573,4 +614,720 @@ func (srv *userService) AgentVerify(ctx context.Context, req *view.AgentVerifyRe
 		Agent:           DBToViewAgent(agent),
 		AgentsLoginPass: DBToViewAgentsLoginPass(agentsLoginPass),
 	}, nil
+}
+
+func (srv *userService) validateMemberRegisterInput(req *view.MemberRegisterReq) error {
+	// Password validation
+	if req.Password == "" {
+		return utils.ErrParamInvalidPasswordEmpty
+	}
+
+	// Check for Chinese characters in password (Unicode range 4e00-9fa5)
+	matched, _ := regexp.MatchString(`^[\x{4e00}-\x{9fa5}]{1,30}$`, req.Password)
+	if matched {
+		return utils.ErrInvalidPasswordChinese
+	}
+
+	if len(req.Password) <= 5 {
+		return utils.ErrInvalidPasswordLengthShort
+	}
+	if len(req.Password) >= 65 {
+		return utils.ErrInvalidPasswordLengthLong
+	}
+
+	// Account validation
+	if req.User == "" {
+		return utils.ErrParamInvalidAccountNameEmpty
+	}
+
+	matched, _ = regexp.MatchString(`^[A-Za-z0-9@_]+$`, req.User)
+	if !matched {
+		return utils.ErrInvalidAccountFormat
+	}
+
+	if strings.Contains(req.User, ".") || strings.Contains(req.Password, ".") {
+		return utils.ErrParamInvalidAccountPasswordIllegal
+	}
+
+	if len(req.User) <= 4 {
+		return utils.ErrInvalidAccountLengthShort
+	}
+	if len(req.User) > 31 {
+		return utils.ErrInvalidAccountLength
+	}
+
+	// Username validation
+	if req.Username == "" {
+		return utils.ErrInvalidUsernameEmpty
+	}
+
+	if len(req.Username) > 31 {
+		return utils.ErrInvalidUsernameLengthLong
+	}
+
+	// Mark validation
+	if len(req.Mark) >= 21 {
+		return utils.ErrInvalidMarkLengthLong
+	}
+
+	return nil
+}
+
+func validateChips(chips string) (string, error) {
+	chips = strings.ReplaceAll(chips, " ", "")
+	chipsList := strings.Split(chips, ",")
+
+	// Validate each chip value
+	chipMap := make(map[string]bool)
+	for _, chip := range chipsList {
+		// Add validation for allowed chip values
+		chipInt, err := strconv.Atoi(chip)
+		if err != nil {
+			return "", utils.ErrInvalidChipsFormat
+		}
+		if !slices.Contains(ChipsCheck, chipInt) {
+			return "", utils.ErrInvalidChipsType
+		}
+		chipMap[chip] = true
+	}
+
+	if len(chipMap) < 5 || len(chipMap) > 10 {
+		return "", utils.ErrInvalidChipsCount
+	}
+	chipsStr := ""
+	for k := range chipMap {
+		chipsStr += fmt.Sprintf("%s,", k)
+	}
+
+	return chipsStr, nil
+}
+
+func (srv *userService) MemberRegister(ctx context.Context, req *view.MemberRegisterReq) (*view.MemberRegisterResp, error) {
+	if err := utils.CheckTimestamp(req.Timestamp); err != nil {
+		xlog.Errorf("error to check timestamp, err:%+v", err)
+		return nil, err
+	}
+	avResp, err := srv.AgentVerify(ctx, &view.AgentVerifyReq{VendorID: req.VendorID, Signature: req.Signature})
+	if err != nil {
+		xlog.Errorf("error to verify agent, err:%+v", err)
+		return nil, err
+	}
+	if avResp.Agent.Age015 == "N" || avResp.Agent.Age016 == "N" {
+		return nil, utils.ErrParamInvalidAgentDeactivated
+	}
+
+	// Validate input
+	if err := srv.validateMemberRegisterInput(req); err != nil {
+		return nil, err
+	}
+
+	// Check if account exists
+	exists, err := srv.userDao.QueryByAccount(srv.DB(), req.User)
+	if err != nil {
+		return nil, err
+	}
+	if exists != nil {
+		return nil, utils.ErrAccountExists
+	}
+
+	currentCount, err := srv.userDao.GetMemberCountByAgentID(srv.DB(), avResp.Agent.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check member count limit
+	if avResp.Agent.Membermax > 0 && currentCount >= avResp.Agent.Membermax {
+		return nil, utils.ErrInvalidMemberLimit
+	}
+
+	// Check profit max
+	if avResp.Agent.Profitmax != "" {
+		profitMax, err := decimal.NewFromString(avResp.Agent.Profitmax)
+		if err != nil {
+			return nil, err
+		}
+		winloss, err := srv.bet02Dao.GetAgentWinloss(srv.DB(), avResp.Agent.ID)
+		if err != nil {
+			return nil, err
+		}
+		if winloss.LessThan(profitMax) {
+			return nil, utils.ErrInvalidAgentProfitLimit
+		}
+	}
+
+	insinfo := make(map[string]interface{}, 0)
+	// Use agent default limits
+	agentlimitsMap, err := srv.agentDtlDao.GetDefaultLimits(srv.DB(), avResp.Agent.ID)
+	if err != nil {
+		return nil, err
+	}
+	// Get parent agent's limits
+	agentLimits, err := srv.agentDtlDao.QueryByAgentID(srv.DB(), avResp.Agent.ID)
+	if err != nil {
+		return nil, err
+	}
+	if req.LimitType == "" {
+		for k, v := range agentlimitsMap {
+			insinfo[k] = v
+		}
+	} else {
+		// Validate and use custom limits
+		limitTypes := strings.Split(req.LimitType, ",")
+		// Check if limit types exist in parent agent's limits
+		validLimits := make([]string, 0)
+		for _, agentLimit := range agentLimits {
+			if agentLimit.Ag014 != "" {
+				parentLimits := strings.Split(agentLimit.Ag014, ",")
+				for _, requestedLimit := range limitTypes {
+					for _, parentLimit := range parentLimits {
+						if requestedLimit == parentLimit {
+							validLimits = append(validLimits, requestedLimit)
+						}
+					}
+				}
+			}
+		}
+
+		if len(utils.ArrayDiffString(limitTypes, validLimits)) != 0 {
+			return nil, utils.ErrInvalidLimitTypeNotOpen
+		}
+
+		// Get default bet limits
+		defaultLimits := []string{}
+		bLDs, err := srv.betLimitDefaultDao.QueryAll(srv.DB())
+		if err != nil {
+			return nil, err
+		}
+		for _, dl := range bLDs {
+			defaultLimits = append(defaultLimits, strconv.Itoa(int(dl.ID)))
+		}
+		if len(utils.ArrayDiffString(limitTypes, defaultLimits)) != 0 {
+			return nil, utils.ErrInvalidLimitType
+		} else {
+			limitTmpMap, err := srv.GetLimit(bLDs, limitTypes)
+			if err != nil {
+				return nil, err
+			}
+			for k, v := range limitTmpMap {
+				if v == "" {
+					limitTmpMap[k] = agentlimitsMap[k]
+				}
+			}
+			for k, v := range limitTmpMap {
+				insinfo[k] = v
+			}
+		}
+
+	}
+
+	// Set chips
+	chipsStr := ""
+	if avResp.Agent.Currency == 17 || avResp.Agent.Currency == 18 {
+		chipsStr = ChipsMap[avResp.Agent.Currency]
+	} else if req.Chips != "" {
+		// Validate custom chips
+		chipsStr, err = validateChips(req.Chips)
+		if err != nil {
+			return nil, err
+		}
+	}
+	insinfo["chips"] = chipsStr
+
+	kickperiod := 0
+	if req.Kickperiod == "" {
+		kickperiod = avResp.Agent.Kickperiod
+	} else {
+		reqKickperiod, err := strconv.Atoi(req.Kickperiod)
+		if err != nil {
+			return nil, err
+		}
+		if reqKickperiod >= 0 {
+			if (reqKickperiod <= avResp.Agent.Kickperiod && reqKickperiod != 0) || avResp.Agent.Kickperiod == 0 {
+				kickperiod = reqKickperiod
+			} else {
+				return nil, utils.ErrInvalidKickPeriodGreaterThanUpper
+			}
+		} else {
+			return nil, utils.ErrInvalidKickPeriodNegative
+		}
+	}
+	insinfo["kickperiod"] = kickperiod
+
+	insinfo["account"] = req.User
+	insinfo["password"] = req.Password
+	insinfo["name"] = req.Username
+
+	insinfo["remark"] = req.Mark
+	insinfo["maxwin"] = req.Maxwin
+	insinfo["maxlose"] = req.Maxlose
+	insinfo["head"] = req.Profile
+	insinfo["lv"] = 6
+	insinfo["uid"] = avResp.Agent.ID
+	insinfo["ulv"] = avResp.Agent.ULV
+	insinfo["kind"] = "a"
+	insinfo["type"] = 0
+	insinfo["tel"] = " "
+	insinfo["currency"] = avResp.Agent.Currency
+	insinfo["set101_1"] = 0
+	insinfo["set102_1"] = 0
+	insinfo["set103_1"] = 0
+	insinfo["set104_1"] = 0
+	insinfo["set105_1"] = 0
+	insinfo["set106_1"] = 0
+	insinfo["set107_1"] = 0
+	insinfo["set108_1"] = 0
+	insinfo["set110_1"] = 0
+	insinfo["set111_1"] = 0
+	insinfo["set112_1"] = 0
+	insinfo["set113_1"] = 0
+	insinfo["set117_1"] = 0
+	insinfo["set121_1"] = 0
+	insinfo["set126_1"] = 0
+	insinfo["opengame"] = "101,102,103,104,105,106,107,108,110,111,112,113,117,121,126"
+
+	//舊版註解
+	insinfo["set301_1"] = 0
+	insinfo["set301_2"] = 0
+	insinfo["set301_9"] = 7
+	insinfo["set109_1"] = 0
+	insinfo["set109_9_0"] = 1
+	insinfo["set109_9_1"] = 2
+	insinfo["set109_9_2"] = 4
+	insinfo["set109_1"] = 0
+	insinfo["set109_9_0"] = 1
+	insinfo["set109_9_1"] = 2
+	insinfo["set109_9_2"] = 4
+	insinfo["set109_9_3"] = 0
+	insinfo["set109_9_4"] = 0
+	insinfo["set109_9_5"] = 0
+	insinfo["set109_9_6"] = 0
+	insinfo["set109_9_7"] = 0
+	insinfo["set109_9_8"] = 0
+	insinfo["set109_9_9"] = 0
+	insinfo["set109_14"] = 0
+	insinfo["shortCode"] = 0
+
+	// set 301_4
+	for _, agentLimit := range agentLimits {
+		if agentLimit.Ag002 == 301 {
+			insinfo["set301_4"] = agentLimit.Ag015
+		}
+	}
+
+	userDtl, err := srv.GetOneUserDtl(avResp.Agent.ID, avResp.Agent.ULV)
+	if err != nil {
+		return nil, err
+	}
+	insinfo["tip"] = avResp.Agent.Tip
+	for _, v := range userDtl {
+		typeStr := v["type"]
+		if req.Rakeback == 0 {
+			insinfo["set"+typeStr+"_2"] = v["bkwater"]
+		} else {
+			insinfo["set"+typeStr+"_2"] = 0
+		}
+		insinfo["set"+typeStr+"_9"] = v["betlimit"]
+	}
+	insinfo["set_109_9"] = 7
+
+	userBase, err := srv.GetOneUserBase("agent", avResp.Agent.ID)
+	if err != nil {
+		return nil, err
+	}
+	insinfo["info"] = userBase
+
+	gameTypes, err := srv.gameTypeDao.QueryByStatus(srv.DB(), 1)
+	if err != nil {
+		return nil, err
+	}
+
+	member := db.Member{
+		User:     insinfo["account"].(string),
+		Password: insinfo["password"].(string),
+		UserName: insinfo["name"].(string),
+		Opengame: insinfo["opengame"].(string),
+		Mem005:   time.Now(),
+		Mem006:   7,
+	}
+	if avResp.Agent.ULV == 1 {
+		member.Mem007 = avResp.Agent.ID
+	} else {
+		member.Mem007 = avResp.Agent.Age007
+	}
+
+	if avResp.Agent.ULV == 2 {
+		member.Mem008 = avResp.Agent.ID
+	} else {
+		member.Mem008 = avResp.Agent.Age008
+	}
+
+	if avResp.Agent.ULV == 3 {
+		member.Mem009 = avResp.Agent.ID
+	} else {
+		member.Mem009 = avResp.Agent.Age009
+	}
+
+	if avResp.Agent.ULV == 4 {
+		member.Mem010 = avResp.Agent.ID
+	} else {
+		member.Mem010 = avResp.Agent.Age010
+	}
+
+	if avResp.Agent.ULV == 5 {
+		member.Mem011 = avResp.Agent.ID
+	} else {
+		member.Mem011 = avResp.Agent.Age011
+	}
+
+	if avResp.Agent.ULV == 5 {
+		if avResp.Agent.Tip != "" {
+			member.Tip = avResp.Agent.Tip
+		} else {
+			if tmpTip, ok := insinfo["tip"]; ok {
+				member.Tip = tmpTip.(string)
+			}
+		}
+	} else {
+		if tmpTip, ok := insinfo["tip"]; ok {
+			member.Tip = tmpTip.(string)
+		}
+	}
+
+	member.Mem012 = 0
+	member.Mem013 = time.Time{}
+	member.Mem016 = "Y"
+	member.Mem017 = "Y"
+	member.Mem018 = "N"
+	member.Mem019 = "N"
+	member.Mem022 = insinfo["tel"].(string)
+	member.Kickperiod = insinfo["kickperiod"].(int)
+	member.Identity = 1
+	if shortCode, ok := insinfo["shortCode"]; ok {
+		member.Mem022a = shortCode.(int)
+	}
+	if head, ok := insinfo["head"]; ok {
+		member.Head = head.(int)
+	}
+	member.Mem028 = insinfo["remark"].(string)
+	if wallet, ok := insinfo["wallet"]; ok {
+		member.Wallet = wallet.(string)
+	} else {
+		member.Wallet = ""
+	}
+	if avResp.Agent.Type != 3 {
+		member.Type = avResp.Agent.Type
+	} else {
+		member.Type = insinfo["type"].(int)
+	}
+	member.Currency = avResp.Agent.Currency
+	if chips, ok := insinfo["chips"]; ok {
+		member.Chips = chips.(string)
+	}
+
+	// Insert member
+	newMemID, err := srv.userDao.CreateUser(srv.DB(), &member)
+	if err != nil {
+		err = errors.New("新增会员资料错误")
+		return nil, err
+	}
+	xlog.Debugf("newMemID: %d", newMemID)
+	var memberDtls []*db.MemberDtl
+	for _, gameType := range gameTypes {
+		memberDtl := &db.MemberDtl{
+			Mem001: newMemID,
+			Mem002: gameType.Code,
+		}
+		if tmpItem, ok := insinfo["set"+strconv.Itoa(int(gameType.Code))+"_2"]; ok {
+			memberDtl.Mem003, err = decimal.NewFromString(tmpItem.(string))
+			if err != nil {
+				err = errors.New("退水信息错误")
+				return nil, err
+			}
+		}
+		memberDtl.Mem004 = member.Mem007
+		memberDtl.Mem005 = member.Mem008
+		memberDtl.Mem006 = member.Mem009
+		memberDtl.Mem007 = member.Mem010
+		memberDtl.Mem008 = member.Mem011
+		memberDtl.Mem013 = time.Now()
+		if gameType.Code != 109 && gameType.Code != 301 {
+			if tmpItem, ok := insinfo["set"+strconv.Itoa(int(gameType.Code))+"_14"]; ok {
+				memberDtl.Mem015 = tmpItem.(string)
+			}
+		}
+		if gameType.Code == 301 {
+			if tmpItem, ok := insinfo["set"+strconv.Itoa(int(gameType.Code))+"_4"]; ok {
+				memberDtl.Mem016, err = decimal.NewFromString(tmpItem.(string))
+				if err != nil {
+					err = errors.New("电投退水信息错误")
+					return nil, err
+				}
+			}
+		}
+		if tmpItem, ok := insinfo["maxwin"]; ok {
+			memberDtl.Mem012 = tmpItem.(int64)
+		}
+		if tmpItem, ok := insinfo["maxlose"]; ok {
+			memberDtl.Mem014 = tmpItem.(int64)
+		}
+		memberDtls = append(memberDtls, memberDtl)
+	}
+	err = srv.memDtlDao.CreateMemberDtls(srv.DB(), memberDtls)
+	if err != nil {
+		err = errors.New("新增会员細項资料错误")
+		return nil, err
+	}
+
+	return &view.MemberRegisterResp{
+		Result: "操作成功",
+	}, nil
+}
+
+// GetLimit groups bet limits by game type and returns concatenated limit IDs
+func (srv *userService) GetLimit(bLDs []*db.BetLimitDefault, limitTypes []string) (map[string]string, error) {
+	// Initialize limit arrays for each game type
+	set101_14 := make([]string, 0)
+	set102_14 := make([]string, 0)
+	set103_14 := make([]string, 0)
+	set104_14 := make([]string, 0)
+	set105_14 := make([]string, 0)
+	set106_14 := make([]string, 0)
+	set107_14 := make([]string, 0)
+	set108_14 := make([]string, 0)
+	set110_14 := make([]string, 0)
+	set111_14 := make([]string, 0)
+	set112_14 := make([]string, 0)
+	set113_14 := make([]string, 0)
+	set117_14 := make([]string, 0)
+	set121_14 := make([]string, 0)
+	set126_14 := make([]string, 0)
+
+	// Get all bet limit defaults
+	for _, limit := range bLDs {
+		// Check if this limit ID is in the requested limitType slice
+		limitID := strconv.Itoa(int(limit.ID))
+		if !slices.Contains(limitTypes, limitID) {
+			continue
+		}
+
+		// Add limit ID to appropriate game type array
+		switch limit.Gtype {
+		case 101:
+			set101_14 = append(set101_14, limitID)
+		case 102:
+			set102_14 = append(set102_14, limitID)
+		case 103:
+			set103_14 = append(set103_14, limitID)
+		case 104:
+			set104_14 = append(set104_14, limitID)
+		case 105:
+			set105_14 = append(set105_14, limitID)
+		case 106:
+			set106_14 = append(set106_14, limitID)
+		case 107:
+			set107_14 = append(set107_14, limitID)
+		case 108:
+			set108_14 = append(set108_14, limitID)
+		case 110:
+			set110_14 = append(set110_14, limitID)
+		case 111:
+			set111_14 = append(set111_14, limitID)
+		case 112:
+			set112_14 = append(set112_14, limitID)
+		case 113:
+			set113_14 = append(set113_14, limitID)
+		case 121:
+			set121_14 = append(set121_14, limitID)
+		case 126:
+			set126_14 = append(set126_14, limitID)
+		}
+	}
+
+	// Create result map with concatenated limit IDs
+	result := map[string]string{
+		"set101_14": strings.Join(set101_14, ","),
+		"set102_14": strings.Join(set102_14, ","),
+		"set103_14": strings.Join(set103_14, ","),
+		"set104_14": strings.Join(set104_14, ","),
+		"set105_14": strings.Join(set105_14, ","),
+		"set106_14": strings.Join(set106_14, ","),
+		"set107_14": strings.Join(set107_14, ","),
+		"set108_14": strings.Join(set108_14, ","),
+		"set110_14": strings.Join(set110_14, ","),
+		"set111_14": strings.Join(set111_14, ","),
+		"set112_14": strings.Join(set112_14, ","),
+		"set113_14": strings.Join(set113_14, ","),
+		"set117_14": strings.Join(set117_14, ","),
+		"set121_14": strings.Join(set121_14, ","),
+		"set126_14": strings.Join(set126_14, ","),
+	}
+
+	return result, nil
+}
+
+func (srv *userService) GetOneUserDtl(id int64, lv int) (map[string]map[string]string, error) {
+	result := make(map[string]map[string]string)
+
+	// Query based on level
+	if lv != 7 {
+		// Query agent_dtl for non-member levels
+		var agentDtls []*db.AgentDtl
+		err := srv.Tx(func(tx *gorm.DB) error {
+			var err error
+			agentDtls, err = srv.agentDtlDao.QueryByAgentID(tx, id)
+			return err
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		// Process agent details
+		for _, dtl := range agentDtls {
+			typeStr := strconv.FormatInt(dtl.Ag002, 10)
+			result[typeStr] = map[string]string{
+				"type":      typeStr,
+				"bkwater":   dtl.Ag003.String(),
+				"rate":      dtl.Ag012.String(),
+				"betlimit":  strconv.Itoa(int(dtl.Ag013)),
+				"nbetlimit": dtl.Ag014,
+				"netwater":  dtl.Ag015.String(),
+				"netrate":   strconv.Itoa(int(dtl.Ag016)),
+			}
+			// Add limitary array
+			if dtl.Ag014 != "" {
+				result[typeStr]["limitary"] = dtl.Ag014
+			}
+		}
+	} else {
+		// Query member_dtl for member level
+		var memberDtls []*db.MemberDtl
+		err := srv.Tx(func(tx *gorm.DB) error {
+			var err error
+			memberDtls, err = srv.memDtlDao.QueryByMemberID(tx, id)
+			return err
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		// Process member details
+		for _, dtl := range memberDtls {
+			typeStr := strconv.FormatInt(dtl.Mem002, 10)
+			result[typeStr] = map[string]string{
+				"type":      typeStr,
+				"bkwater":   dtl.Mem003.String(),
+				"rate":      "0",
+				"betlimit":  strconv.FormatInt(dtl.Mem011, 10),
+				"maxwin":    strconv.FormatInt(dtl.Mem012, 10),
+				"maxlose":   strconv.FormatInt(dtl.Mem014, 10),
+				"nbetlimit": dtl.Mem015,
+				"netwater":  dtl.Mem016.String(),
+			}
+			// Add limitary array
+			if dtl.Mem015 != "" {
+				result[typeStr]["limitary"] = dtl.Mem015
+			}
+		}
+	}
+
+	// Add default type 301 if not exists
+	if _, exists := result["301"]; !exists {
+		result["301"] = map[string]string{
+			"type":        "301",
+			"bkwater":     "0",
+			"rate":        "0",
+			"betlimit":    "1023", // As per PHP code
+			"maxwin":      "0",
+			"maxlose":     "0",
+			"nbetlimit":   "0",
+			"betlimitary": "1,1,1,1,1,1,1,1,1,1",
+		}
+	}
+
+	// Add default type 105 if not exists
+	if _, exists := result["105"]; !exists {
+		// Get bet limit defaults for type 105
+		var betLimits []*db.BetLimitDefault
+		err := srv.Tx(func(tx *gorm.DB) error {
+			var err error
+			betLimits, err = srv.betLimitDefaultDao.QueryByGtype(tx, 105)
+			if err != nil {
+				return err
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		// Build nbetlimit string
+		var nbetlimitParts []string
+		for _, limit := range betLimits {
+			nbetlimitParts = append(nbetlimitParts, strconv.FormatInt(limit.ID, 10))
+		}
+		nbetlimit := strings.Join(nbetlimitParts, ",")
+
+		result["105"] = map[string]string{
+			"type":      "105",
+			"bkwater":   "2.00",
+			"rate":      "90",
+			"betlimit":  "0",
+			"maxwin":    "0",
+			"maxlose":   "0",
+			"netwater":  "0.00",
+			"netrate":   "0",
+			"nbetlimit": nbetlimit,
+		}
+	}
+
+	return result, nil
+}
+
+func (srv *userService) GetOneUserBase(table string, id int64) (map[string]interface{}, error) {
+	var query string
+	switch table {
+	case "agent":
+		query = `SELECT 
+			age001 as id,
+			age002 as account, 
+			age003 as password, 
+			age004 as name, 
+			age015 as useflag, 
+			age016 as betflag,
+			age024 as remark,
+			type,
+			currency,
+			prefix_add as prefixadd,
+			tip
+		FROM agent WHERE age001 = ?`
+	case "member":
+		query = `SELECT 
+			mem001 as id,
+			mem002 as account, 
+			mem003 as password, 
+			mem004 as name, 
+			mem016 as useflag, 
+			mem017 as betflag,
+			mem022 as tel,
+			mem022a as shortCode,
+			mem028 as remark,
+			type,
+			head,
+			currency,
+			tip
+		FROM member WHERE mem001 = ?`
+	default:
+		return nil, fmt.Errorf("invalid table name: %s", table)
+	}
+
+	var result map[string]interface{}
+	err := srv.DB().Raw(query, id).Scan(&result).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("error querying user base info: %w", err)
+	}
+
+	return result, nil
 }

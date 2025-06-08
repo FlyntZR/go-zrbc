@@ -88,6 +88,12 @@ func DBToViewAgent(dAgent *db.Agent) *view.Agent {
 		Name:         dAgent.Age003,
 		Password:     dAgent.Age004,
 		CreatedAt:    dAgent.Age005.Unix(),
+		ULV:          dAgent.Age006,
+		Age007:       dAgent.Age007,
+		Age008:       dAgent.Age008,
+		Age009:       dAgent.Age009,
+		Age010:       dAgent.Age010,
+		Age011:       dAgent.Age011,
 		RiskReset:    dAgent.Age014,
 		Status:       dAgent.Age015,
 		BetStatus:    dAgent.Age016,
@@ -117,6 +123,8 @@ func DBToViewAgent(dAgent *db.Agent) *view.Agent {
 		ChkKey:       dAgent.ChkKey,
 		ChkLock:      dAgent.ChkLock,
 		LastChpsw:    dAgent.LastChpsw.Unix(),
+		Age015:       dAgent.Age015,
+		Age016:       dAgent.Age016,
 	}
 	return &vAgent
 }

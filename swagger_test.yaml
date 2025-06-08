@@ -4,6 +4,39 @@ consumes:
 definitions:
     Agent:
         properties:
+            age007:
+                description: 上级代理商ID
+                format: int64
+                type: integer
+                x-go-name: Age007
+            age008:
+                description: 上级代理商ID
+                format: int64
+                type: integer
+                x-go-name: Age008
+            age009:
+                description: 上级代理商ID
+                format: int64
+                type: integer
+                x-go-name: Age009
+            age010:
+                description: 上级代理商ID
+                format: int64
+                type: integer
+                x-go-name: Age010
+            age011:
+                description: 上级代理商ID
+                format: int64
+                type: integer
+                x-go-name: Age011
+            age015:
+                description: 启停用状态
+                type: string
+                x-go-name: Age015
+            age016:
+                description: 启停押状态
+                type: string
+                x-go-name: Age016
             betStatus:
                 description: 启停押状态
                 type: string
@@ -147,6 +180,11 @@ definitions:
                 format: int64
                 type: integer
                 x-go-name: Type
+            ulv:
+                description: 等级
+                format: int64
+                type: integer
+                x-go-name: ULV
             vendorId:
                 description: 代理商ID
                 type: string
@@ -591,6 +629,13 @@ definitions:
                 x-go-name: Winlossprompt
         type: object
         x-go-package: go-zrbc/view
+    MemberRegisterResp:
+        properties:
+            result:
+                type: string
+                x-go-name: Result
+        type: object
+        x-go-package: go-zrbc/view
     Session:
         properties:
             SID:
@@ -599,9 +644,9 @@ definitions:
         x-go-package: go-zrbc/view
     SigninGameResp:
         properties:
-            gameURL:
+            result:
                 type: string
-                x-go-name: GameURL
+                x-go-name: Result
         type: object
         x-go-package: go-zrbc/view
     TokenUser:
@@ -736,6 +781,108 @@ paths:
                     $ref: '#/responses/CommonError'
             tags:
                 - S3接口
+    /v1/member_register:
+        post:
+            consumes:
+                - multipart/form-data
+            description: 注册用户
+            operationId: MemberRegister
+            parameters:
+                - description: 代理商(aid)
+                  in: formData
+                  name: vendorId
+                  type: string
+                  x-go-name: VendorID
+                - description: 代理商标识符
+                  in: formData
+                  name: signature
+                  type: string
+                  x-go-name: Signature
+                - description: 帐号
+                  in: formData
+                  name: user
+                  type: string
+                  x-go-name: User
+                - in: formData
+                  name: password
+                  type: string
+                  x-go-name: Password
+                - description: 用户名称
+                  in: formData
+                  name: username
+                  type: string
+                  x-go-name: Username
+                - description: 用户类型（非必要）
+                  format: int64
+                  in: formData
+                  name: profile
+                  type: integer
+                  x-go-name: Profile
+                - description: 最大赢（非必要）
+                  format: int64
+                  in: formData
+                  name: maxwin
+                  type: integer
+                  x-go-name: Maxwin
+                - description: 最大输（非必要）
+                  format: int64
+                  in: formData
+                  name: maxlose
+                  type: integer
+                  x-go-name: Maxlose
+                - description: 备注（非必要）
+                  in: formData
+                  name: mark
+                  type: string
+                  x-go-name: Mark
+                - description: '會員退水是否歸零   0為: 不歸零 1為: 歸零  (非必要)'
+                  format: int64
+                  in: formData
+                  name: rakeback
+                  type: integer
+                  x-go-name: Rakeback
+                - description: |-
+                    限制类型 (非必要)例:2,5,9,14,48,107,111,131 (非必要)
+                    (此为风险控管的一环，请经营者多善利用)
+                    http://wmapi.a45.me/Limit.html
+                  in: formData
+                  name: limitType
+                  type: string
+                  x-go-name: LimitType
+                - description: |-
+                    籌碼選擇会员筹码 使用逗号隔开，可填入5-10组 (非必要)
+                    若没带入，会员筹码预设为 10,20,50,100,500,1000,5000,10000,20000,50000
+                    可用筹码种类：1, 5, 10, 20, 50, 100, 500, 1000, 5000, 10000, 20000, 50000, 100000, 200000, 1000000, 5000000, 10000000, 20000000, 50000000, 10000000, 20000000, 50000000, 100000000
+                  in: formData
+                  name: chip
+                  type: string
+                  x-go-name: Chips
+                - description: 提出局数（非必要）
+                  in: formData
+                  name: kickperiod
+                  type: string
+                  x-go-name: Kickperiod
+                - description: 时间戳
+                  format: int64
+                  in: formData
+                  name: timestamp
+                  type: integer
+                  x-go-name: Timestamp
+                - description: 0:中文, 1:英文 (非必要)
+                  format: int64
+                  in: formData
+                  name: syslang
+                  type: integer
+                  x-go-name: Syslang
+            responses:
+                "200":
+                    description: MemberRegisterResp
+                    schema:
+                        $ref: '#/definitions/MemberRegisterResp'
+                "500":
+                    $ref: '#/responses/CommonError'
+            tags:
+                - 用户接口
     /v1/signin_game:
         post:
             consumes:
@@ -743,39 +890,71 @@ paths:
             description: 开游戏
             operationId: SigninGame
             parameters:
-                - in: formData
+                - description: 代理商(aid)
+                  in: formData
                   name: vendorId
                   type: string
                   x-go-name: VendorID
-                - in: formData
+                - description: 代理商标识符
+                  in: formData
                   name: signature
                   type: string
                   x-go-name: Signature
-                - in: formData
+                - description: 帐号
+                  in: formData
                   name: user
                   type: string
                   x-go-name: User
-                - in: formData
+                - description: 设备
+                  in: formData
                   name: device
                   type: string
                   x-go-name: Device
-                - in: formData
+                - description: |-
+                    语言 使用语言 0或空值 为简体中文
+                    1为英文
+                    2为泰文
+                    3为越文
+                    4为日文
+                    5为韩文
+                    6为印度文
+                    7为马来西亚文
+                    8为印尼文
+                    9为繁体中文
+                    10为西文
+                    11为俄文
+                  in: formData
                   name: lang
                   type: string
                   x-go-name: Lang
-                - in: formData
+                - description: 试玩（非必要）
+                  in: formData
                   name: isTest
                   type: boolean
                   x-go-name: IsTest
-                - in: formData
+                - description: |-
+                    游戏模式（非必要）onlybac 略过大厅直接进入百家乐；onlydgtg 略过大厅直接进入龙虎；onlyrou 略过大厅直接进入轮盘；onlysicbo 略过大厅直接进入骰宝；onlyniuniu 略过大厅直接进入牛牛；onlyfantan 略过大厅直接进入番摊；onlysedie 略过大厅直接进入色碟；下方數值務必帶入參數tableid
+                    onlybactable 略过大厅直接进入百家乐；onlydgtgtable 略过大厅直接进入龙虎；onlyroutable 略过大厅直接进入轮盘；onlysicbotable 略过大厅直接进入骰宝；onlyniuniutable 略过大厅直接进入牛牛；onlyfantantable 略过大厅直接进入番摊；onlysedietable 略过大厅直接进入色碟
+                  in: formData
                   name: mode
                   type: string
                   x-go-name: Mode
-                - in: formData
+                - description: |-
+                    桌子IDmode参数带入以下数值为必填
+                    onlybactable
+                    onlydgtgtable
+                    onlyroutable
+                    onlysicbotable
+                    onlyniuniutable
+                    onlyfantantable
+                    onlysedietable
+                    否则非必要
+                  in: formData
                   name: tableid
                   type: string
                   x-go-name: TableID
-                - in: formData
+                - description: 站点
+                  in: formData
                   name: site
                   type: string
                   x-go-name: Site
@@ -783,35 +962,59 @@ paths:
                   name: password
                   type: string
                   x-go-name: Password
-                - in: formData
+                - description: 游戏类型
+                  in: formData
                   name: gameType
                   type: string
                   x-go-name: GameType
-                - in: formData
+                - description: 宽度
+                  in: formData
                   name: width
                   type: string
                   x-go-name: Width
-                - in: formData
+                - description: 返回URL
+                  in: formData
                   name: returnurl
                   type: string
                   x-go-name: ReturnURL
-                - in: formData
+                - description: 1:iframe嵌入 (非必要)
+                  in: formData
                   name: size
                   type: string
                   x-go-name: Size
-                - format: int64
+                - description: 用户ID
+                  format: int64
                   in: formData
                   name: ui
                   type: integer
                   x-go-name: UI
-                - in: formData
+                - description: 静音
+                  in: formData
                   name: mute
                   type: string
                   x-go-name: Mute
-                - in: formData
+                - description: 视频
+                  in: formData
                   name: video
                   type: string
                   x-go-name: Video
+                - description: 0:中文, 1:英文 (非必要)
+                  format: int64
+                  in: formData
+                  name: syslang
+                  type: integer
+                  x-go-name: Syslang
+                - description: 籌碼選擇
+                  in: query
+                  name: chip
+                  type: string
+                  x-go-name: Chips
+                - description: 时间戳
+                  format: int64
+                  in: formData
+                  name: timestamp
+                  type: integer
+                  x-go-name: Timestamp
             responses:
                 "200":
                     description: SigninGameResp

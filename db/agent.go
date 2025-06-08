@@ -14,6 +14,7 @@ type AgentDao interface {
 	DeleteByID(tx *gorm.DB, uniqueID int64) error
 	UpdateAgent(tx *gorm.DB, agent *Agent) error
 	UpdatesAgent(tx *gorm.DB, agentID int64, data map[string]interface{}) error
+	GetMaxMemberCountForAgent(tx *gorm.DB, agentID int64) (int, error)
 }
 
 type agentDao struct{}
@@ -60,6 +61,16 @@ func (dao *agentDao) UpdatesAgent(tx *gorm.DB, agentID int64, data map[string]in
 	return tx.Table(TableNameAgent).Where("age001 = ?", agentID).Updates(data).Error
 }
 
+// GetMemberCount gets the total member count for an agent and the max allowed
+func (dao *agentDao) GetMaxMemberCountForAgent(tx *gorm.DB, agentID int64) (int, error) {
+	var maxCount = 0
+	err := tx.Table(TableNameAgent).Where("age001 = ?", agentID).Select("membermax").Scan(&maxCount).Error
+	if err != nil {
+		return 0, err
+	}
+	return maxCount, nil
+}
+
 const TableNameAgent = "agent"
 
 // Agent mapped from table <agent>
@@ -70,11 +81,11 @@ type Agent struct {
 	Age004       string          `gorm:"column:age004;not null" json:"age004"`
 	Age005       time.Time       `gorm:"column:age005;not null;default:current_timestamp()" json:"age005"`
 	Age006       int             `gorm:"column:age006;not null" json:"age006"`
-	Age007       int             `gorm:"column:age007;not null" json:"age007"`
-	Age008       int             `gorm:"column:age008;not null" json:"age008"`
-	Age009       int             `gorm:"column:age009;not null" json:"age009"`
-	Age010       int             `gorm:"column:age010;not null" json:"age010"`
-	Age011       int             `gorm:"column:age011;not null" json:"age011"`
+	Age007       int64           `gorm:"column:age007;not null" json:"age007"`
+	Age008       int64           `gorm:"column:age008;not null" json:"age008"`
+	Age009       int64           `gorm:"column:age009;not null" json:"age009"`
+	Age010       int64           `gorm:"column:age010;not null" json:"age010"`
+	Age011       int64           `gorm:"column:age011;not null" json:"age011"`
 	Age012       time.Time       `gorm:"column:age012;not null" json:"age012"`
 	Age013       string          `gorm:"column:age013;not null" json:"age013"`
 	Age014       int             `gorm:"column:age014;not null;comment:風險重置開關" json:"age014"`          // 風險重置開關

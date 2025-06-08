@@ -219,7 +219,7 @@ func (md *MiddlewareHandler) Oauth(c *gin.Context) {
 		return
 	}
 	if Within(c.Request.URL.Path, []string{
-		"/swagger.yaml", "/swagger_local.yaml", "/swagger_test.yaml", "/docs", "/v1/time_ts", "/v1/signin_game"}) {
+		"/swagger.yaml", "/swagger_local.yaml", "/swagger_test.yaml", "/docs", "/v1/time_ts", "/v1/signin_game", "/v1/member_register"}) {
 		c.Next()
 		return
 	}

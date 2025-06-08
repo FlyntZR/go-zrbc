@@ -15,6 +15,7 @@ type UserDao interface {
 	DeleteByID(tx *gorm.DB, uniqueID int64) error
 	UpdateMember(tx *gorm.DB, ysUser *Member) error
 	UpdatesMember(tx *gorm.DB, userID int64, data map[string]interface{}) error
+	GetMemberCountByAgentID(tx *gorm.DB, agentID int64) (currentCount int, err error)
 }
 
 type userDao struct{}
@@ -71,6 +72,15 @@ func (dao *userDao) UpdatesMember(tx *gorm.DB, userID int64, data map[string]int
 	return tx.Table("member").Where("mem001 = ?", userID).Updates(data).Error
 }
 
+func (dao *userDao) GetMemberCountByAgentID(tx *gorm.DB, agentID int64) (int, error) {
+	var currentCount int64 = 0
+	err := tx.Table("member").Where("mem011 = ?", agentID).Count(&currentCount).Error
+	if err != nil {
+		return 0, err
+	}
+	return int(currentCount), nil
+}
+
 const TableNameMember = "member"
 
 // Member mapped from table <member>
@@ -81,18 +91,18 @@ type Member struct {
 	UserName        string          `gorm:"column:mem004;not null" json:"mem004"`                      // 用户名称
 	Mem005          time.Time       `gorm:"column:mem005;not null;default:current_timestamp()" json:"mem005"`
 	Mem006          int             `gorm:"column:mem006;not null" json:"mem006"`
-	Mem007          int             `gorm:"column:mem007;not null" json:"mem007"`
-	Mem008          int             `gorm:"column:mem008;not null" json:"mem008"`
-	Mem009          int             `gorm:"column:mem009;not null" json:"mem009"`
-	Mem010          int             `gorm:"column:mem010;not null" json:"mem010"`
-	Mem011          int             `gorm:"column:mem011;not null" json:"mem011"`
+	Mem007          int64           `gorm:"column:mem007;not null" json:"mem007"`
+	Mem008          int64           `gorm:"column:mem008;not null" json:"mem008"`
+	Mem009          int64           `gorm:"column:mem009;not null" json:"mem009"`
+	Mem010          int64           `gorm:"column:mem010;not null" json:"mem010"`
+	Mem011          int64           `gorm:"column:mem011;not null" json:"mem011"`
 	Mem012          int             `gorm:"column:mem012;not null" json:"mem012"`
 	Mem013          time.Time       `gorm:"column:mem013;not null" json:"mem013"`
 	Mem014          string          `gorm:"column:mem014;not null" json:"mem014"`
 	Mem015          int             `gorm:"column:mem015;not null;comment:login_error" json:"mem015"`         // login_error
 	Mem016          string          `gorm:"column:mem016;not null;default:Y;comment:enable" json:"mem016"`    // enable
 	Mem017          string          `gorm:"column:mem017;not null;default:Y;comment:canbet" json:"mem017"`    // canbet
-	Mem018          string          `gorm:"column:mem018;not null;default:Y;comment:chg_pw" json:"mem018"`    // chg_pw
+	Mem018          string          `gorm:"column:mem018;not null;default:N;comment:chg_pw" json:"mem018"`    // chg_pw
 	Mem019          string          `gorm:"column:mem019;not null;default:N;comment:is_test" json:"mem019"`   // is_test
 	Mem020          string          `gorm:"column:mem020;not null;default:N;comment:be_traded" json:"mem020"` // be_traded
 	Mem021          int             `gorm:"column:mem021;not null" json:"mem021"`
