@@ -724,7 +724,9 @@ func (srv *userService) MemberRegister(ctx context.Context, req *view.MemberRegi
 	// Check if account exists
 	exists, err := srv.userDao.QueryByAccount(srv.DB(), req.User)
 	if err != nil {
-		return nil, err
+		if err != gorm.ErrRecordNotFound {
+			return nil, err
+		}
 	}
 	if exists != nil {
 		return nil, utils.ErrAccountExists
@@ -1023,58 +1025,78 @@ func (srv *userService) MemberRegister(ctx context.Context, req *view.MemberRegi
 	if chips, ok := insinfo["chips"]; ok {
 		member.Chips = chips.(string)
 	}
+	member.Onlineprompt = "0"
 
 	// Insert member
-	newMemID, err := srv.userDao.CreateUser(srv.DB(), &member)
-	if err != nil {
-		err = errors.New("新增会员资料错误")
-		return nil, err
-	}
-	xlog.Debugf("newMemID: %d", newMemID)
-	var memberDtls []*db.MemberDtl
-	for _, gameType := range gameTypes {
-		memberDtl := &db.MemberDtl{
-			Mem001: newMemID,
-			Mem002: gameType.Code,
+	var newMemID int64
+	err = srv.Tx(func(tx *gorm.DB) error {
+		var err error
+		newMemID, err = srv.userDao.CreateUser(tx, &member)
+		if err != nil {
+			err = errors.New("新增会员资料错误")
+			return err
 		}
-		if tmpItem, ok := insinfo["set"+strconv.Itoa(int(gameType.Code))+"_2"]; ok {
-			memberDtl.Mem003, err = decimal.NewFromString(tmpItem.(string))
-			if err != nil {
-				err = errors.New("退水信息错误")
-				return nil, err
+		xlog.Debugf("newMemID: %d", newMemID)
+
+		var memberDtls []*db.MemberDtl
+		for _, gameType := range gameTypes {
+			memberDtl := &db.MemberDtl{
+				Mem001: newMemID,
+				Mem002: gameType.Code,
 			}
-		}
-		memberDtl.Mem004 = member.Mem007
-		memberDtl.Mem005 = member.Mem008
-		memberDtl.Mem006 = member.Mem009
-		memberDtl.Mem007 = member.Mem010
-		memberDtl.Mem008 = member.Mem011
-		memberDtl.Mem013 = time.Now()
-		if gameType.Code != 109 && gameType.Code != 301 {
-			if tmpItem, ok := insinfo["set"+strconv.Itoa(int(gameType.Code))+"_14"]; ok {
-				memberDtl.Mem015 = tmpItem.(string)
-			}
-		}
-		if gameType.Code == 301 {
-			if tmpItem, ok := insinfo["set"+strconv.Itoa(int(gameType.Code))+"_4"]; ok {
-				memberDtl.Mem016, err = decimal.NewFromString(tmpItem.(string))
+			if tmpItem, ok := insinfo["set"+strconv.Itoa(int(gameType.Code))+"_2"]; ok {
+				memberDtl.Mem003, err = decimal.NewFromString(tmpItem.(string))
 				if err != nil {
-					err = errors.New("电投退水信息错误")
-					return nil, err
+					err = errors.New("退水信息错误")
+					return err
 				}
 			}
+			memberDtl.Mem004 = member.Mem007
+			memberDtl.Mem005 = member.Mem008
+			memberDtl.Mem006 = member.Mem009
+			memberDtl.Mem007 = member.Mem010
+			memberDtl.Mem008 = member.Mem011
+			memberDtl.Mem013 = time.Now()
+			if gameType.Code != 109 && gameType.Code != 301 {
+				if tmpItem, ok := insinfo["set"+strconv.Itoa(int(gameType.Code))+"_14"]; ok {
+					memberDtl.Mem015 = tmpItem.(string)
+				}
+			}
+			if gameType.Code == 301 {
+				if tmpItem, ok := insinfo["set"+strconv.Itoa(int(gameType.Code))+"_4"]; ok {
+					xlog.Debugf("tmpItem: %v", tmpItem)
+					if v, ok := tmpItem.(int); ok {
+						memberDtl.Mem016 = decimal.NewFromInt(int64(v))
+					} else if v, ok := tmpItem.(string); ok {
+						memberDtl.Mem016, err = decimal.NewFromString(v)
+						if err != nil {
+							err = errors.New("电投退水信息错误")
+							return err
+						}
+					} else if v, ok := tmpItem.(decimal.Decimal); ok {
+						memberDtl.Mem016 = v
+					} else {
+						err = errors.New("电投退水信息错误")
+						return err
+					}
+				}
+			}
+			if tmpItem, ok := insinfo["maxwin"]; ok {
+				memberDtl.Mem012 = tmpItem.(int64)
+			}
+			if tmpItem, ok := insinfo["maxlose"]; ok {
+				memberDtl.Mem014 = tmpItem.(int64)
+			}
+			memberDtls = append(memberDtls, memberDtl)
 		}
-		if tmpItem, ok := insinfo["maxwin"]; ok {
-			memberDtl.Mem012 = tmpItem.(int64)
+		err = srv.memDtlDao.CreateMemberDtls(tx, memberDtls)
+		if err != nil {
+			err = errors.New("新增会员細項资料错误")
+			return err
 		}
-		if tmpItem, ok := insinfo["maxlose"]; ok {
-			memberDtl.Mem014 = tmpItem.(int64)
-		}
-		memberDtls = append(memberDtls, memberDtl)
-	}
-	err = srv.memDtlDao.CreateMemberDtls(srv.DB(), memberDtls)
+		return nil
+	})
 	if err != nil {
-		err = errors.New("新增会员細項资料错误")
 		return nil, err
 	}
 

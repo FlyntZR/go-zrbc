@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"go-zrbc/pkg/xlog"
 	"math"
 	"math/rand"
 	"strconv"
@@ -26,6 +27,7 @@ type SIDInfo struct {
 // utp: user type
 // sidlen: SID string length (default 13)
 func ProSIDCreate(wcode, ulv, utp string, uid int64, sidlen int) string {
+	xlog.Debugf("wcode: %s, ulv: %s, utp: %s, uid: %d, sidlen: %d", wcode, ulv, utp, uid, sidlen)
 	if sidlen == 0 {
 		sidlen = 13
 	}

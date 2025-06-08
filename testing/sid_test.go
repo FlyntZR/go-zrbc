@@ -18,7 +18,8 @@ func TestDismantSID(t *testing.T) {
 	}
 
 	// Test case 2: Valid SID
-	sid := "00861A6E7D3G3G1B6F454386" // Last digit 7 indicates first part length is 7
+	sid := "4741412E9C9H3A84557A168M795" // Last digit 7 indicates first part length is 7
+	// sid := "074112B8H3F8E35518A168M7944" // Last digit 7 indicates first part length is 7
 	info, err = utils.DismantSID(sid, 4)
 	if err != nil {
 		t.Errorf("Failed to dismant SID: %v", err)

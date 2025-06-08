@@ -8,6 +8,7 @@ import (
 	service "go-zrbc/service/user"
 	"go-zrbc/view"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -71,7 +72,8 @@ func (handler *UserHandler) SigninGame(c *gin.Context) {
 	timestamp, err := strconv.ParseInt(c.PostForm("timestamp"), 10, 64)
 	if err != nil {
 		xlog.Warnf("timestamp is not a number, use default value 0")
-		timestamp = 0
+		// 方便测试自动时间戳
+		timestamp = time.Now().Unix()
 	}
 	req.Timestamp = timestamp
 	ui, err := strconv.Atoi(c.PostForm("ui"))
@@ -139,7 +141,8 @@ func (handler *UserHandler) MemberRegister(c *gin.Context) {
 	timestamp, err := strconv.ParseInt(c.PostForm("timestamp"), 10, 64)
 	if err != nil {
 		xlog.Warnf("timestamp is not a number, use default value 0")
-		timestamp = 0
+		// 方便测试自动时间戳
+		timestamp = time.Now().Unix()
 	}
 	req.Timestamp = timestamp
 
