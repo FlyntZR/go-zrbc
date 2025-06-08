@@ -132,7 +132,7 @@ type Member struct {
 	Singlebetprompt decimal.Decimal `gorm:"column:singlebetprompt;not null;default:0;comment:單注金額告警" json:"singlebetprompt"` // 單注金額告警
 	Conwinprompt    int             `gorm:"column:conwinprompt;not null;comment:連贏局數告警" json:"conwinprompt"`                 // 連贏局數告警
 	Winlossprompt   string          `gorm:"column:winlossprompt;not null;default:0;comment:最大可輸可贏提示" json:"winlossprompt"`   // 最大可輸可贏提示
-	Onlineprompt    string          `gorm:"column:onlineprompt;not null;comment:上線提示" json:"onlineprompt"`                   // 上線提示
+	Onlineprompt    string          `gorm:"column:onlineprompt;not null;default:'0';comment:上線提示" json:"onlineprompt"`       // 上線提示
 	Profitprompt    int             `gorm:"column:profitprompt;not null;comment:盈利告警" json:"profitprompt"`                   // 盈利告警
 }
 

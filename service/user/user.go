@@ -1025,7 +1025,6 @@ func (srv *userService) MemberRegister(ctx context.Context, req *view.MemberRegi
 	if chips, ok := insinfo["chips"]; ok {
 		member.Chips = chips.(string)
 	}
-	member.Onlineprompt = "0"
 
 	// Insert member
 	var newMemID int64
