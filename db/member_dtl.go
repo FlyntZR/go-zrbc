@@ -1,6 +1,7 @@
 package db
 
 import (
+	"go-zrbc/pkg/xlog"
 	"time"
 
 	"github.com/shopspring/decimal"
@@ -16,6 +17,8 @@ type MemberDtlDao interface {
 	Updates(tx *gorm.DB, mid, category int64, data map[string]interface{}) error
 	QueryByMemberID(tx *gorm.DB, mid int64) ([]*MemberDtl, error)
 	CreateMemberDtls(tx *gorm.DB, memberDtls []*MemberDtl) error
+	UpdateMemberDtlByMemberID(tx *gorm.DB, dtl *MemberDtl, updates map[string]interface{}) error
+	UpdatesByAgentID(tx *gorm.DB, agentID int64, updates map[string]interface{}) error
 }
 
 type memberDtlDao struct{}
@@ -60,6 +63,30 @@ func (dao *memberDtlDao) QueryByMemberID(tx *gorm.DB, mid int64) ([]*MemberDtl, 
 
 func (dao *memberDtlDao) CreateMemberDtls(tx *gorm.DB, memberDtls []*MemberDtl) error {
 	return tx.Create(memberDtls).Error
+}
+
+func (dao *memberDtlDao) UpdateMemberDtlByMemberID(tx *gorm.DB, dtl *MemberDtl, updates map[string]interface{}) error {
+	// xlog.Infof("UpdateMemberDtlByMemberID, dtl: %+v, updates: %+v", dtl, updates)
+	// return nil
+	if len(updates) == 0 {
+		return nil
+	}
+
+	err := tx.Model(&MemberDtl{}).Where("mem001 = ? AND mem002 = ?", dtl.Mem001, dtl.Mem002).Updates(updates).Error
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (dao *memberDtlDao) UpdatesByAgentID(tx *gorm.DB, agentID int64, updates map[string]interface{}) error {
+	xlog.Infof("UpdatesByAgentID, agentID: %d, updates: %+v", agentID, updates)
+	return nil
+	// if len(updates) == 0 {
+	// 	return nil
+	// }
+	// return tx.Table(TableNameMemberDtl).Where("mem008 = ?", agentID).Updates(updates).Error
 }
 
 const TableNameMemberDtl = "member_dtl"

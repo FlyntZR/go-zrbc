@@ -380,6 +380,13 @@ definitions:
                 x-go-name: ID
         type: object
         x-go-package: go-zrbc/view
+    EditLimitResp:
+        properties:
+            result:
+                type: string
+                x-go-name: Result
+        type: object
+        x-go-package: go-zrbc/view
     GetBarragesResp:
         properties:
             data:
@@ -716,6 +723,72 @@ paths:
                     $ref: '#/responses/CommonError'
             tags:
                 - S3接口
+    /v1/edit_limit:
+        post:
+            consumes:
+                - multipart/form-data
+            description: 修改限额
+            operationId: EditLimit
+            parameters:
+                - description: 代理商(aid)
+                  in: formData
+                  name: vendorId
+                  type: string
+                  x-go-name: VendorID
+                - description: 代理商标识符
+                  in: formData
+                  name: signature
+                  type: string
+                  x-go-name: Signature
+                - description: 帐号
+                  in: formData
+                  name: user
+                  type: string
+                  x-go-name: User
+                - description: 限制类型 (非必要)例:2,5,9,14,48,107,111,131 (非必要)
+                  in: formData
+                  name: limitType
+                  type: string
+                  x-go-name: LimitType
+                - description: 最大赢（非必要）
+                  format: int64
+                  in: formData
+                  name: maxwin
+                  type: integer
+                  x-go-name: Maxwin
+                - description: 最大输（非必要）
+                  format: int64
+                  in: formData
+                  name: maxlose
+                  type: integer
+                  x-go-name: Maxlose
+                - description: 重置时间
+                  format: int64
+                  in: formData
+                  name: reset
+                  type: integer
+                  x-go-name: Reset
+                - description: 时间戳
+                  format: int64
+                  in: formData
+                  name: timestamp
+                  type: integer
+                  x-go-name: Timestamp
+                - description: 0:中文, 1:英文 (非必要)
+                  format: int64
+                  in: formData
+                  name: syslang
+                  type: integer
+                  x-go-name: Syslang
+            responses:
+                "200":
+                    description: EditLimitResp
+                    schema:
+                        $ref: '#/definitions/EditLimitResp'
+                "500":
+                    $ref: '#/responses/CommonError'
+            tags:
+                - 用户接口
     /v1/get_file:
         post:
             consumes:

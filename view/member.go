@@ -269,6 +269,42 @@ type MemberRegisterResp struct {
 	Result string `json:"result"`
 }
 
+// swagger:parameters EditLimit
+type EditLimitReq struct {
+	// 代理商(aid)
+	// in:formData
+	VendorID string `json:"vendorId"`
+	// 代理商标识符
+	// in:formData
+	Signature string `json:"signature"`
+	// 帐号
+	// in:formData
+	User string `json:"user"`
+	// 限制类型 (非必要)例:2,5,9,14,48,107,111,131 (非必要)
+	// in:formData
+	LimitType string `json:"limitType"`
+	// 最大赢（非必要）
+	// in:formData
+	Maxwin int64 `json:"maxwin"`
+	// 最大输（非必要）
+	// in:formData
+	Maxlose int64 `json:"maxlose"`
+	// 重置时间
+	// in:formData
+	Reset int `json:"reset"`
+	// 时间戳
+	// in:formData
+	Timestamp int64 `json:"timestamp"`
+	// 0:中文, 1:英文 (非必要)
+	// in:formData
+	Syslang int `json:"syslang"`
+}
+
+// swagger:model
+type EditLimitResp struct {
+	Result string `json:"result"`
+}
+
 type UserDtl struct {
 	Type      int    `json:"type"`
 	Bkwater   string `json:"bkwater"`

@@ -71,6 +71,7 @@ type UserService interface {
 	SigninGame(ctx context.Context, req *view.SigninGameReq) (*view.SigninGameResp, error)
 	MemberRegister(ctx context.Context, req *view.MemberRegisterReq) (*view.MemberRegisterResp, error)
 	AgentVerify(ctx context.Context, req *view.AgentVerifyReq) (*view.AgentVerifyResp, error)
+	EditLimit(ctx context.Context, req *view.EditLimitReq) (*view.EditLimitResp, error)
 }
 
 type MemDtlDao interface {
@@ -774,12 +775,14 @@ func (srv *userService) MemberRegister(ctx context.Context, req *view.MemberRegi
 		}
 	} else {
 		// Validate and use custom limits
+		req.LimitType = strings.ReplaceAll(req.LimitType, " ", "")
 		limitTypes := strings.Split(req.LimitType, ",")
 		// Check if limit types exist in parent agent's limits
 		validLimits := make([]string, 0)
 		for _, agentLimit := range agentLimits {
-			if agentLimit.Ag014 != "" {
-				parentLimits := strings.Split(agentLimit.Ag014, ",")
+			tmpAgentLimit := strings.ReplaceAll(agentLimit.Ag014, " ", "")
+			if tmpAgentLimit != "" {
+				parentLimits := strings.Split(tmpAgentLimit, ",")
 				for _, requestedLimit := range limitTypes {
 					for _, parentLimit := range parentLimits {
 						if requestedLimit == parentLimit {
@@ -1351,4 +1354,187 @@ func (srv *userService) GetOneUserBase(table string, id int64) (map[string]inter
 	}
 
 	return result, nil
+}
+
+func (srv *userService) EditLimit(ctx context.Context, req *view.EditLimitReq) (*view.EditLimitResp, error) {
+	if err := utils.CheckTimestamp(req.Timestamp); err != nil {
+		xlog.Errorf("error to check timestamp, err:%+v", err)
+		return nil, err
+	}
+
+	// Verify agent
+	avResp, err := srv.AgentVerify(ctx, &view.AgentVerifyReq{VendorID: req.VendorID, Signature: req.Signature})
+	if err != nil {
+		xlog.Errorf("error to verify agent, err:%+v", err)
+		return nil, err
+	}
+
+	// Handle maxwin/maxlose update without account
+	if req.User == "" && (req.Maxwin != -1 || req.Maxlose != -1) {
+		err = srv.Tx(func(tx *gorm.DB) error {
+			updates := make(map[string]interface{})
+			if req.Maxwin != -1 {
+				updates["mem012"] = req.Maxwin
+			}
+			if req.Maxlose != -1 {
+				updates["mem014"] = req.Maxlose
+			}
+			if len(updates) > 0 {
+				err := srv.memDtlDao.UpdatesByAgentID(tx, avResp.Agent.ID, updates)
+				if err != nil {
+					xlog.Errorf("error to update by agent, err:%+v", err)
+					return err
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			xlog.Errorf("error to tx operation, err:%+v", err)
+			return nil, err
+		}
+		return &view.EditLimitResp{Result: "操作成功"}, nil
+	}
+
+	// Validate account
+	if req.User == "" {
+		xlog.Errorf("error to validate account, err:%+v", utils.ErrInvalidAccountEmpty)
+		return nil, utils.ErrInvalidAccountEmpty
+	}
+
+	// Get member info
+	member, err := srv.userDao.QueryByAccount(srv.DB(), req.User)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			xlog.Errorf("error to query member by account, err:%+v", utils.ErrParamInvalidAccountNotExist)
+			return nil, utils.ErrParamInvalidAccountNotExist
+		}
+		return nil, err
+	}
+
+	// Verify member belongs to agent
+	if member.Mem011 != avResp.Agent.ID {
+		xlog.Errorf("error to verify member belongs to agent, err:%+v", utils.ErrParamInvalidAccountNotExist)
+		return nil, utils.ErrParamInvalidAccountNotExist
+	}
+
+	insinfo := make(map[string]interface{})
+	insinfo["account"] = req.User
+
+	// Handle limit type
+	if req.LimitType != "" {
+		req.LimitType = strings.ReplaceAll(req.LimitType, " ", "")
+		limitTypes := strings.Split(req.LimitType, ",")
+
+		// Get parent agent's limits
+		agentLimits, err := srv.agentDtlDao.QueryByAgentID(srv.DB(), avResp.Agent.ID)
+		if err != nil {
+			xlog.Errorf("error to query agent dtl, err:%+v", err)
+			return nil, err
+		}
+
+		// Validate limit types against parent agent's limits
+		validLimits := make([]string, 0)
+		for _, agentLimit := range agentLimits {
+			tmpAgentLimit := strings.ReplaceAll(agentLimit.Ag014, " ", "")
+			if tmpAgentLimit != "" {
+				parentLimits := strings.Split(tmpAgentLimit, ",")
+				for _, requestedLimit := range limitTypes {
+					for _, parentLimit := range parentLimits {
+						if requestedLimit == parentLimit {
+							validLimits = append(validLimits, requestedLimit)
+						}
+					}
+				}
+			}
+		}
+		xlog.Infof("validLimits: %+v", validLimits)
+
+		if len(utils.ArrayDiffString(limitTypes, validLimits)) != 0 {
+			xlog.Errorf("error to validate limit types, err:%+v", utils.ErrInvalidLimitTypeNotOpen)
+			return nil, utils.ErrInvalidLimitTypeNotOpen
+		}
+
+		// Get default bet limits
+		bLDs, err := srv.betLimitDefaultDao.QueryAll(srv.DB())
+		if err != nil {
+			xlog.Errorf("error to get default bet limits, err:%+v", err)
+			return nil, err
+		}
+
+		defaultLimits := make([]string, 0)
+		for _, dl := range bLDs {
+			defaultLimits = append(defaultLimits, strconv.Itoa(int(dl.ID)))
+		}
+
+		if len(utils.ArrayDiffString(limitTypes, defaultLimits)) != 0 {
+			xlog.Errorf("error to validate limit types, err:%+v", utils.ErrInvalidLimitType)
+			return nil, utils.ErrInvalidLimitType
+		}
+
+		// Get limit map
+		limitMap, err := srv.GetLimit(bLDs, limitTypes)
+		if err != nil {
+			xlog.Errorf("error to get limit map, err:%+v", err)
+			return nil, err
+		}
+
+		for k, v := range limitMap {
+			insinfo[k] = v
+		}
+	}
+
+	// Handle maxwin/maxlose
+	if req.Maxwin != -1 {
+		insinfo["maxwin"] = req.Maxwin
+	}
+	if req.Maxlose != -1 {
+		insinfo["maxlose"] = req.Maxlose
+	}
+
+	// Handle reset
+	if req.Reset == 1 {
+		insinfo["reset"] = time.Now()
+	}
+
+	// Update member details
+	err = srv.Tx(func(tx *gorm.DB) error {
+		memberDtls, err := srv.memDtlDao.QueryByMemberID(tx, member.ID)
+		if err != nil {
+			xlog.Errorf("error to query member dtl, err:%+v", err)
+			return err
+		}
+
+		for _, dtl := range memberDtls {
+			updates := make(map[string]interface{})
+
+			if maxwin, ok := insinfo["maxwin"]; ok {
+				updates["mem012"] = maxwin
+			}
+			if maxlose, ok := insinfo["maxlose"]; ok {
+				updates["mem014"] = maxlose
+			}
+			if reset, ok := insinfo["reset"]; ok {
+				updates["mem013"] = reset
+			}
+			if limitKey := fmt.Sprintf("set%d_14", dtl.Mem002); insinfo[limitKey] != nil {
+				updates["mem015"] = insinfo[limitKey]
+			}
+
+			if len(updates) > 0 {
+				err = srv.memDtlDao.UpdateMemberDtlByMemberID(tx, dtl, updates)
+				if err != nil {
+					xlog.Errorf("error to update member dtl, err:%+v", err)
+					return err
+				}
+			}
+		}
+		return nil
+	})
+
+	if err != nil {
+		xlog.Errorf("error to tx operation, err:%+v", err)
+		return nil, err
+	}
+
+	return &view.EditLimitResp{Result: "操作成功"}, nil
 }

@@ -27,6 +27,7 @@ func (h *UserHandler) SetRouter(r *gin.Engine) {
 	r.GET("/v1/user_info", h.GetUserInfo)
 	r.POST("/v1/signin_game", h.SigninGame)
 	r.POST("/v1/member_register", h.MemberRegister)
+	r.POST("/v1/edit_limit", h.EditLimit)
 }
 
 // swagger:route GET /v1/user_info 用户接口 GetUserInfo
@@ -84,6 +85,12 @@ func (handler *UserHandler) SigninGame(c *gin.Context) {
 	req.UI = ui
 	req.Mute = c.PostForm("mute")
 	req.Video = c.PostForm("video")
+	syslang, err := strconv.Atoi(c.PostForm("syslang"))
+	if err != nil {
+		xlog.Warnf("syslang is not a number, use default value 0")
+		syslang = 0
+	}
+	req.Syslang = syslang
 
 	xlog.Debugf("SigninGame req: %+v", &req)
 	resp, err := handler.srv.SigninGame(c, &req)
@@ -145,9 +152,75 @@ func (handler *UserHandler) MemberRegister(c *gin.Context) {
 		timestamp = time.Now().Unix()
 	}
 	req.Timestamp = timestamp
+	syslang, err := strconv.Atoi(c.PostForm("syslang"))
+	if err != nil {
+		xlog.Warnf("syslang is not a number, use default value 0")
+		syslang = 0
+	}
+	req.Syslang = syslang
 
 	xlog.Debugf("MemberRegister req: %+v", &req)
 	resp, err := handler.srv.MemberRegister(c, &req)
+	if err != nil {
+		commonresp.ErrResp(c, err)
+		return
+	}
+	commonresp.JsonResp(c, resp)
+}
+
+// swagger:route POST /v1/edit_limit 用户接口 EditLimit
+// 修改限额
+// consumes:
+//   - multipart/form-data
+//
+// responses:
+//
+//	200: EditLimitResp
+//	500: CommonError
+func (handler *UserHandler) EditLimit(c *gin.Context) {
+	var req view.EditLimitReq
+	req.VendorID = c.PostForm("vendorId")
+	req.Signature = c.PostForm("signature")
+	req.User = c.PostForm("user")
+	req.LimitType = c.PostForm("limitType")
+
+	maxwin, err := strconv.ParseInt(c.PostForm("maxwin"), 10, 64)
+	if err != nil {
+		xlog.Warnf("maxwin is not a number, use default value 0")
+		maxwin = -1
+	}
+	req.Maxwin = maxwin
+
+	maxlose, err := strconv.ParseInt(c.PostForm("maxlose"), 10, 64)
+	if err != nil {
+		xlog.Warnf("maxlose is not a number, use default value 0")
+		maxlose = -1
+	}
+	req.Maxlose = maxlose
+
+	reset, err := strconv.Atoi(c.PostForm("reset"))
+	if err != nil {
+		xlog.Warnf("reset is not a number, use default value 0")
+		reset = 0
+	}
+	req.Reset = reset
+
+	timestamp, err := strconv.ParseInt(c.PostForm("timestamp"), 10, 64)
+	if err != nil {
+		xlog.Warnf("timestamp is not a number, use default value 0")
+		// Use current timestamp for testing
+		timestamp = time.Now().Unix()
+	}
+	req.Timestamp = timestamp
+	syslang, err := strconv.Atoi(c.PostForm("syslang"))
+	if err != nil {
+		xlog.Warnf("syslang is not a number, use default value 0")
+		syslang = 0
+	}
+	req.Syslang = syslang
+
+	xlog.Debugf("EditLimit req: %+v", &req)
+	resp, err := handler.srv.EditLimit(c, &req)
 	if err != nil {
 		commonresp.ErrResp(c, err)
 		return

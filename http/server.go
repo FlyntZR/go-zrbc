@@ -57,7 +57,7 @@ func (s *Server) Run() {
 	configa.AllowHeaders = append(configa.AllowHeaders, "Authorization")
 	configa.AllowAllOrigins = true
 	md := NewMiddlewareHandler(ServiceID)
-	r.Use(gin.Recovery(), cors.New(configa), md.RequestLog, md.Options, md.Oauth)
+	r.Use(gin.Recovery(), cors.New(configa), md.RequestLog, md.Options)
 
 	r.GET("/ping", func(c *gin.Context) {
 		c.JSON(200, gin.H{
