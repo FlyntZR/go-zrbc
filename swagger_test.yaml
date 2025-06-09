@@ -433,6 +433,13 @@ definitions:
                 $ref: '#/definitions/Member'
         type: object
         x-go-package: go-zrbc/view
+    LogoutGameResp:
+        properties:
+            result:
+                type: string
+                x-go-name: Result
+        type: object
+        x-go-package: go-zrbc/view
     Member:
         properties:
             cash:
@@ -854,6 +861,49 @@ paths:
                     $ref: '#/responses/CommonError'
             tags:
                 - S3接口
+    /v1/logout_game:
+        post:
+            consumes:
+                - multipart/form-data
+            description: 登出游戏
+            operationId: LogoutGame
+            parameters:
+                - description: 代理商(aid)
+                  in: formData
+                  name: vendorId
+                  type: string
+                  x-go-name: VendorID
+                - description: 代理商标识符
+                  in: formData
+                  name: signature
+                  type: string
+                  x-go-name: Signature
+                - description: 帐号
+                  in: formData
+                  name: user
+                  type: string
+                  x-go-name: User
+                - description: 时间戳
+                  format: int64
+                  in: formData
+                  name: timestamp
+                  type: integer
+                  x-go-name: Timestamp
+                - description: 0:中文, 1:英文 (非必要)
+                  format: int64
+                  in: formData
+                  name: syslang
+                  type: integer
+                  x-go-name: Syslang
+            responses:
+                "200":
+                    description: LogoutGameResp
+                    schema:
+                        $ref: '#/definitions/LogoutGameResp'
+                "500":
+                    $ref: '#/responses/CommonError'
+            tags:
+                - 用户接口
     /v1/member_register:
         post:
             consumes:

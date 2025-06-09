@@ -15,6 +15,7 @@ type MemLoginDao interface {
 	Update(tx *gorm.DB, memLogin *MemLogin) error
 	UpdateFields(tx *gorm.DB, memID int64, data map[string]interface{}) error
 	CreateOrUpdateMemLogin(tx *gorm.DB, uid int64, wcode int, sid string, userIP string, now time.Time) (*MemLogin, error)
+	UpdateMemLoginByMemIDs(tx *gorm.DB, memIDs []int64) error
 }
 
 // memLoginDao implements MemLoginDao interface
@@ -98,6 +99,11 @@ func (dao *memLoginDao) CreateOrUpdateMemLogin(tx *gorm.DB, uid int64, wcode int
 	} else {
 		return nil, result.Error
 	}
+}
+
+// LogoutGame updates the session ID to empty string for the given member IDs
+func (dao *memLoginDao) UpdateMemLoginByMemIDs(tx *gorm.DB, memIDs []int64) error {
+	return tx.Model(&MemLogin{}).Where("mlg001 IN ?", memIDs).Update("mlg003", "").Error
 }
 
 const TableNameMemLogin = "mem_login"

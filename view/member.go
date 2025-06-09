@@ -316,3 +316,27 @@ type UserDtl struct {
 	Netwater  string `json:"netwater"`
 	Netrate   string `json:"netrate"`
 }
+
+// swagger:parameters LogoutGame
+type LogoutGameReq struct {
+	// 代理商(aid)
+	// in:formData
+	VendorID string `json:"vendorId" form:"vendorId"`
+	// 代理商标识符
+	// in:formData
+	Signature string `json:"signature" form:"signature"`
+	// 帐号
+	// in:formData
+	User string `json:"user" form:"user"`
+	// 时间戳
+	// in:formData
+	Timestamp int64 `json:"timestamp" form:"timestamp"`
+	// 0:中文, 1:英文 (非必要)
+	// in:formData
+	Syslang int `json:"syslang" form:"syslang"`
+}
+
+// swagger:model
+type LogoutGameResp struct {
+	Result string `json:"result"`
+}

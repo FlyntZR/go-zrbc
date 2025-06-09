@@ -28,6 +28,7 @@ func (h *UserHandler) SetRouter(r *gin.Engine) {
 	r.POST("/v1/signin_game", h.SigninGame)
 	r.POST("/v1/member_register", h.MemberRegister)
 	r.POST("/v1/edit_limit", h.EditLimit)
+	r.POST("/v1/logout_game", h.LogoutGame)
 }
 
 // swagger:route GET /v1/user_info 用户接口 GetUserInfo
@@ -221,6 +222,43 @@ func (handler *UserHandler) EditLimit(c *gin.Context) {
 
 	xlog.Debugf("EditLimit req: %+v", &req)
 	resp, err := handler.srv.EditLimit(c, &req)
+	if err != nil {
+		commonresp.ErrResp(c, err)
+		return
+	}
+	commonresp.JsonResp(c, resp)
+}
+
+// swagger:route POST /v1/logout_game 用户接口 LogoutGame
+// 登出游戏
+// consumes:
+//   - multipart/form-data
+//
+// responses:
+//
+//	200: LogoutGameResp
+//	500: CommonError
+func (handler *UserHandler) LogoutGame(c *gin.Context) {
+	var req view.LogoutGameReq
+	req.VendorID = c.PostForm("vendorId")
+	req.Signature = c.PostForm("signature")
+	req.User = c.PostForm("user")
+	timestamp, err := strconv.ParseInt(c.PostForm("timestamp"), 10, 64)
+	if err != nil {
+		xlog.Warnf("timestamp is not a number, use default value 0")
+		// 方便测试自动时间戳
+		timestamp = time.Now().Unix()
+	}
+	req.Timestamp = timestamp
+	syslang, err := strconv.Atoi(c.PostForm("syslang"))
+	if err != nil {
+		xlog.Warnf("syslang is not a number, use default value 0")
+		syslang = 0
+	}
+	req.Syslang = syslang
+
+	xlog.Debugf("LogoutGame req: %+v", &req)
+	resp, err := handler.srv.LogoutGame(c, &req)
 	if err != nil {
 		commonresp.ErrResp(c, err)
 		return

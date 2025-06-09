@@ -72,6 +72,7 @@ type UserService interface {
 	MemberRegister(ctx context.Context, req *view.MemberRegisterReq) (*view.MemberRegisterResp, error)
 	AgentVerify(ctx context.Context, req *view.AgentVerifyReq) (*view.AgentVerifyResp, error)
 	EditLimit(ctx context.Context, req *view.EditLimitReq) (*view.EditLimitResp, error)
+	LogoutGame(ctx context.Context, req *view.LogoutGameReq) (*view.LogoutGameResp, error)
 }
 
 type MemDtlDao interface {
@@ -1537,4 +1538,70 @@ func (srv *userService) EditLimit(ctx context.Context, req *view.EditLimitReq) (
 	}
 
 	return &view.EditLimitResp{Result: "操作成功"}, nil
+}
+
+func (srv *userService) LogoutGame(ctx context.Context, req *view.LogoutGameReq) (*view.LogoutGameResp, error) {
+	if err := utils.CheckTimestamp(req.Timestamp); err != nil {
+		xlog.Errorf("error to check timestamp, err:%+v", err)
+		return nil, err
+	}
+
+	// Verify agent
+	avResp, err := srv.AgentVerify(ctx, &view.AgentVerifyReq{VendorID: req.VendorID, Signature: req.Signature})
+	if err != nil {
+		xlog.Errorf("error to verify agent, err:%+v", err)
+		return nil, err
+	}
+
+	var memberIDs []int64
+	if req.User != "" {
+		// Get member by account
+		member, err := srv.userDao.QueryByAccount(srv.DB(), req.User)
+		if err != nil {
+			if err == gorm.ErrRecordNotFound {
+				xlog.Errorf("error to query member by account, err:%+v", utils.ErrParamInvalidAccountNotExist)
+				return nil, utils.ErrParamInvalidAccountNotExist
+			}
+			return nil, err
+		}
+
+		// Verify member belongs to agent
+		if member.Mem011 != avResp.Agent.ID {
+			xlog.Errorf("error to verify member belongs to agent, err:%+v", utils.ErrParamInvalidAccountNotExist)
+			return nil, utils.ErrParamInvalidAccountNotExist
+		}
+
+		memberIDs = append(memberIDs, member.ID)
+	} else {
+		// Get all members under this agent
+		members, err := srv.userDao.QueryByAgentID(srv.DB(), avResp.Agent.ID)
+		if err != nil {
+			return nil, err
+		}
+		if len(members) == 0 {
+			xlog.Errorf("error to query members by agent, err:%+v", utils.ErrParamInvalidAccountNotExist)
+			return nil, utils.ErrParamInvalidAccountNotExist
+		}
+
+		for _, member := range members {
+			memberIDs = append(memberIDs, member.ID)
+		}
+	}
+
+	// Delete mem_login records for the members
+	err = srv.Tx(func(tx *gorm.DB) error {
+		if err := srv.memLoginDao.UpdateMemLoginByMemIDs(tx, memberIDs); err != nil {
+			xlog.Errorf("error to delete mem_login, memberIDs:%+v, err:%+v", memberIDs, err)
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		xlog.Errorf("error to tx operation, err:%+v", err)
+		return nil, err
+	}
+
+	return &view.LogoutGameResp{
+		Result: "操作成功",
+	}, nil
 }

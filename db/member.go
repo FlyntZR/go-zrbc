@@ -16,6 +16,7 @@ type UserDao interface {
 	UpdateMember(tx *gorm.DB, ysUser *Member) error
 	UpdatesMember(tx *gorm.DB, userID int64, data map[string]interface{}) error
 	GetMemberCountByAgentID(tx *gorm.DB, agentID int64) (currentCount int, err error)
+	QueryByAgentID(tx *gorm.DB, agentID int64) ([]*Member, error)
 }
 
 type userDao struct{}
@@ -79,6 +80,15 @@ func (dao *userDao) GetMemberCountByAgentID(tx *gorm.DB, agentID int64) (int, er
 		return 0, err
 	}
 	return int(currentCount), nil
+}
+
+func (dao *userDao) QueryByAgentID(tx *gorm.DB, agentID int64) ([]*Member, error) {
+	var members []*Member
+	err := tx.Where("mem011 = ?", agentID).Find(&members).Error
+	if err != nil {
+		return nil, err
+	}
+	return members, nil
 }
 
 const TableNameMember = "member"
