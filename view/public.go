@@ -122,7 +122,37 @@ type GetBalanceReq struct {
 	Syslang int `json:"syslang"`
 }
 
-// GetBalanceResp represents the response for GetBalance
+// swagger:model
 type GetBalanceResp struct {
 	Result decimal.Decimal `json:"result"`
+}
+
+// swagger:parameters ChangeBalance
+type ChangeBalanceReq struct {
+	// 代理商(aid)
+	// in:formData
+	VendorID string `json:"vendorId" form:"vendorId"`
+	// 代理商标识符
+	// in:formData
+	Signature string `json:"signature" form:"signature"`
+	// 会员(user)
+	// in:formData
+	User string `json:"user" form:"user"`
+	// 加扣点金额(money)
+	// in:formData
+	Money string `json:"money" form:"money"`
+	// 贵公司产生的订单序号(非必要)最大值:32字符
+	// in:formData
+	Order string `json:"order" form:"order"`
+	// 时间戳
+	// in:formData
+	Timestamp int64 `json:"timestamp" form:"timestamp"`
+	// 0:中文, 1:英文 (非必要)
+	// in:formData
+	Syslang int `json:"syslang" form:"syslang"`
+}
+
+// swagger:model
+type ChangeBalanceResp struct {
+	Result string `json:"result"`
 }

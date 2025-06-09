@@ -35,6 +35,7 @@ func (h *PublicApiHandler) SetRouter(r *gin.Engine) {
 	r.POST("/v1/change_password", h.ChangePassword)
 	r.POST("/v1/get_agent_balance", h.GetAgentBalance)
 	r.POST("/v1/get_balance", h.GetBalance)
+	r.POST("/v1/change_balance", h.ChangeBalance)
 }
 
 func (h *PublicApiHandler) handlePublicApi(c *gin.Context) {
@@ -70,6 +71,7 @@ func (h *PublicApiHandler) handlePublicApi(c *gin.Context) {
 		"GetBalance":             true,
 		"ChangePassword":         true,
 		"SigninGame":             true,
+		"ChangeBalance":          true,
 	}
 
 	// Handle command
@@ -88,6 +90,8 @@ func (h *PublicApiHandler) handlePublicApi(c *gin.Context) {
 		h.GetBalance(c)
 	case "SigninGame":
 		h.SigninGame(c)
+	case "ChangeBalance":
+		h.ChangeBalance(c)
 	// Add other command handlers as needed
 	default:
 		if !passCommands[cmd] {
@@ -437,6 +441,45 @@ func (h *PublicApiHandler) GetBalance(c *gin.Context) {
 
 	xlog.Debugf("GetBalance req: %+v", &req)
 	resp, err := h.srv.GetBalance(c, &req)
+	if err != nil {
+		commonresp.ErrResp(c, err)
+		return
+	}
+	commonresp.JsonResp(c, resp)
+}
+
+// swagger:route POST /v1/change_balance api渠道接口 ChangeBalance
+// 修改会员余额
+// consumes:
+//   - multipart/form-data
+//
+// responses:
+//
+//	200: ChangeBalanceResp
+//	500: CommonError
+func (h *PublicApiHandler) ChangeBalance(c *gin.Context) {
+	var req view.ChangeBalanceReq
+	req.VendorID = c.PostForm("vendorId")
+	req.Signature = c.PostForm("signature")
+	req.User = c.PostForm("user")
+	req.Money = c.PostForm("money")
+	req.Order = c.PostForm("order")
+	timestamp, err := strconv.ParseInt(c.PostForm("timestamp"), 10, 64)
+	if err != nil {
+		xlog.Warnf("timestamp is not a number, use default value 0")
+		// 方便测试自动时间戳
+		timestamp = time.Now().Unix()
+	}
+	req.Timestamp = timestamp
+	syslang, err := strconv.Atoi(c.PostForm("syslang"))
+	if err != nil {
+		xlog.Warnf("syslang is not a number, use default value 0")
+		syslang = 0
+	}
+	req.Syslang = syslang
+
+	xlog.Debugf("ChangeBalance req: %+v", &req)
+	resp, err := h.srv.ChangeBalance(c, &req)
 	if err != nil {
 		commonresp.ErrResp(c, err)
 		return

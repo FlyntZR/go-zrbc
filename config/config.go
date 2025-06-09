@@ -20,6 +20,8 @@ type Config struct {
 	AwsSecret      string `json:"aws_secret"`
 	Wcode          string `json:"wcode"`
 	SidLen         int    `json:"sid_len"`
+	AlertUrl       string `json:"alert_url"`
+	WMAlertUrl     string `json:"wm_alert_url"`
 	LogLevel       string `json:"log_level"`
 	LogFile        string `json:"log_file"`
 	Agent          string `json:"agent"`        // 网络代理，如果非空，则需要使用代理

@@ -77,6 +77,7 @@ type PublicApiService interface {
 	ChangePassword(ctx context.Context, req *view.ChangePasswordReq) (*view.ChangePasswordResp, error)
 	GetAgentBalance(ctx context.Context, req *view.GetAgentBalanceReq) (*view.GetAgentBalanceResp, error)
 	GetBalance(ctx context.Context, req *view.GetBalanceReq) (*view.GetBalanceResp, error)
+	ChangeBalance(ctx context.Context, req *view.ChangeBalanceReq) (*view.ChangeBalanceResp, error)
 }
 
 type MemDtlDao interface {
@@ -89,24 +90,27 @@ type BetLimitDefaultDao interface {
 }
 
 type publicApiService struct {
-	userDao            db.UserDao
-	apiurlDao          db.ApiurlDao
-	wechatURLDao       db.WechatURLDao
-	agentsLoginPassDao db.AgentsLoginPassDao
-	agentDao           db.AgentDao
-	memLoginDao        db.MemLoginDao
-	bet02Dao           db.Bet02Dao
-	agentDtlDao        db.AgentDtlDao
-	betLimitDefaultDao db.BetLimitDefaultDao
-	memDtlDao          db.MemberDtlDao
-	gameTypeDao        db.GameTypeDao
+	userDao             db.UserDao
+	apiurlDao           db.ApiurlDao
+	wechatURLDao        db.WechatURLDao
+	agentsLoginPassDao  db.AgentsLoginPassDao
+	agentDao            db.AgentDao
+	memLoginDao         db.MemLoginDao
+	bet02Dao            db.Bet02Dao
+	agentDtlDao         db.AgentDtlDao
+	betLimitDefaultDao  db.BetLimitDefaultDao
+	memDtlDao           db.MemberDtlDao
+	gameTypeDao         db.GameTypeDao
+	inOutMDao           db.InOutMDao
+	logAgeCashChangeDao db.LogAgeCashChangeDao
+	alertMessageDao     db.AlertMessageDao
 
 	s3Client *s3.Client
 	redisCli *redis.Client
 	*service.Session
 }
 
-func NewUserService(
+func NewPublicApiService(
 	sess *service.Session,
 	userDao db.UserDao,
 	apiurlDao db.ApiurlDao,
@@ -119,22 +123,28 @@ func NewUserService(
 	betLimitDefaultDao db.BetLimitDefaultDao,
 	memDtlDao db.MemberDtlDao,
 	gameTypeDao db.GameTypeDao,
+	inOutMDao db.InOutMDao,
+	logAgeCashChangeDao db.LogAgeCashChangeDao,
+	alertMessageDao db.AlertMessageDao,
 
 	s3Client *s3.Client,
 	redisCli *redis.Client,
 ) PublicApiService {
 	srv := &publicApiService{
-		userDao:            userDao,
-		apiurlDao:          apiurlDao,
-		wechatURLDao:       wechatURLDao,
-		agentsLoginPassDao: agentsLoginPassDao,
-		agentDao:           agentDao,
-		memLoginDao:        memLoginDao,
-		bet02Dao:           bet02Dao,
-		agentDtlDao:        agentDtlDao,
-		betLimitDefaultDao: betLimitDefaultDao,
-		memDtlDao:          memDtlDao,
-		gameTypeDao:        gameTypeDao,
+		userDao:             userDao,
+		apiurlDao:           apiurlDao,
+		wechatURLDao:        wechatURLDao,
+		agentsLoginPassDao:  agentsLoginPassDao,
+		agentDao:            agentDao,
+		memLoginDao:         memLoginDao,
+		bet02Dao:            bet02Dao,
+		agentDtlDao:         agentDtlDao,
+		betLimitDefaultDao:  betLimitDefaultDao,
+		memDtlDao:           memDtlDao,
+		gameTypeDao:         gameTypeDao,
+		inOutMDao:           inOutMDao,
+		logAgeCashChangeDao: logAgeCashChangeDao,
+		alertMessageDao:     alertMessageDao,
 
 		s3Client: s3Client,
 		redisCli: redisCli,
@@ -1678,19 +1688,6 @@ func (srv *publicApiService) ChangePassword(ctx context.Context, req *view.Chang
 		return nil, err
 	}
 
-	// Update Redis cache
-	member.Password = req.NewPassword
-	mem := DBToViewUserCache(member)
-	userRedisData, marshalErr := json.Marshal(mem)
-	if marshalErr != nil {
-		xlog.Warnf("Failed to marshal user info for Redis: %v", marshalErr)
-	} else {
-		redisErr := srv.redisCli.HSet(ctx, "user", req.User, string(userRedisData)).Err()
-		if redisErr != nil {
-			xlog.Warnf("Failed to store user info in Redis: %v", redisErr)
-		}
-	}
-
 	// Get language-specific response
 	var result string
 	switch req.Syslang {
@@ -1771,4 +1768,250 @@ func (srv *publicApiService) GetBalance(ctx context.Context, req *view.GetBalanc
 	return &view.GetBalanceResp{
 		Result: member.Cash,
 	}, nil
+}
+
+func (srv *publicApiService) ChangeBalance(ctx context.Context, req *view.ChangeBalanceReq) (*view.ChangeBalanceResp, error) {
+	// Validate timestamp
+	if err := utils.CheckTimestamp(req.Timestamp); err != nil {
+		xlog.Errorf("error to check timestamp, err:%+v", err)
+		return nil, err
+	}
+
+	// Verify agent
+	avResp, err := srv.AgentVerify(ctx, &view.AgentVerifyReq{VendorID: req.VendorID, Signature: req.Signature})
+	if err != nil {
+		xlog.Errorf("error to verify agent, err:%+v", err)
+		return nil, err
+	}
+
+	// Validate money parameter
+	if req.Money == "" {
+		return nil, utils.ErrWalletAddOrSubPointEmptyOrMoneyParamNotSet
+	}
+
+	// Check for Chinese characters in money parameter
+	matched, _ := regexp.MatchString(`[\p{Han}]`, req.Money)
+	if matched {
+		return nil, utils.ErrWalletAddOrSubPointChinese
+	}
+
+	// Parse money value
+	moneyDec, err := decimal.NewFromString(req.Money)
+	if err != nil || moneyDec.IsZero() {
+		return nil, utils.ErrWalletAddOrSubPointEmptyOrMoneyParamNotSet
+	}
+
+	// Get member by account
+	member, err := srv.userDao.QueryByAccount(srv.DB(), req.User)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, utils.ErrParamInvalidAccountNotExist
+		}
+		return nil, err
+	}
+
+	// Verify member belongs to agent
+	if member.Mem011 != avResp.Agent.ID {
+		return nil, utils.ErrParamInvalidAccountNotBelongToAgent
+	}
+
+	// Check if member is locked
+	if member.Mem020 == "Y" {
+		return nil, utils.ErrInvalidTransactionError
+	}
+
+	// Check transaction timing
+	const ChangeBalance_chkTime = "ChangeBalance_chkTime"
+	currentTime := time.Now().Unix()
+
+	// Get last transaction time from Redis hash
+	lastTxTime, err := srv.redisCli.HGet(ctx, ChangeBalance_chkTime, strconv.FormatInt(member.ID, 10)).Int64()
+	if err == redis.Nil {
+		// No previous transaction time, set current time
+		err = srv.redisCli.HSet(ctx, ChangeBalance_chkTime, strconv.FormatInt(member.ID, 10), currentTime).Err()
+		if err != nil {
+			xlog.Errorf("error setting transaction time in Redis: %v", err)
+			return nil, utils.ErrWalletTransferLineError
+		}
+	} else if err != nil {
+		xlog.Errorf("error getting transaction time from Redis: %v", err)
+		return nil, utils.ErrWalletTransferLineError
+	} else {
+		// Calculate time difference
+		timeDiff := currentTime - lastTxTime
+
+		// Special handling for specific vendors/agents
+		if req.VendorID == "igktwapi" || req.VendorID == "ocmsapi" || avResp.Agent.ID == 1717 {
+			if timeDiff < 2 {
+				return nil, utils.ErrWalletTransferRepeatIn2Error
+			}
+		} else {
+			if timeDiff < 5 {
+				return nil, utils.ErrWalletTransferRepeatIn5Error
+			}
+		}
+
+		// Update transaction time
+		err = srv.redisCli.HSet(ctx, ChangeBalance_chkTime, strconv.FormatInt(member.ID, 10), currentTime).Err()
+		if err != nil {
+			xlog.Errorf("error updating transaction time in Redis: %v", err)
+			return nil, utils.ErrWalletTransferLineError
+		}
+	}
+
+	// Check launder
+	launder, err := srv.CheckLaunder(srv.DB(), avResp, member)
+	if err != nil {
+		xlog.Errorf("error to check launder, err:%+v", err)
+		return nil, err
+	}
+	if launder {
+		xlog.Errorf("error to check launder, err:%+v", utils.ErrWalletTransferLockError)
+		return nil, utils.ErrWalletTransferLockError
+	}
+
+	// Check 5 seconds duplicate transactions (same amount)
+	res, err := srv.CheckDoubleDeals(ctx, member.ID, moneyDec, req.Order)
+	if err != nil {
+		xlog.Errorf("error to check double deals, err:%+v", err)
+		return nil, err
+	}
+	if res == 1 {
+		xlog.Errorf("error to check double deals, err:%+v", utils.ErrWalletTransferRepeatIn5Error)
+		return nil, utils.ErrWalletTransferRepeatIn5Error
+	}
+	if res == 3 {
+		xlog.Errorf("error to check double deals, err:%+v", utils.ErrWalletTransferExist)
+		return nil, utils.ErrWalletTransferExist
+	}
+
+	// Start transaction to update balance
+	err = srv.Tx(func(tx *gorm.DB) error {
+		// Lock member record
+		err := srv.userDao.UpdatesMember(tx, member.ID, map[string]interface{}{
+			"mem020": "Y",
+		})
+		if err != nil {
+			return err
+		}
+
+		// Calculate new balance
+		newBalance := member.Cash.Add(moneyDec)
+		if newBalance.IsNegative() {
+			return utils.ErrWalletTransferBalanceNotEnough
+		}
+
+		// Update member balance
+		err = srv.userDao.UpdatesMember(tx, member.ID, map[string]interface{}{
+			"cash":   newBalance,
+			"mem020": "N",
+		})
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		// Ensure member is unlocked in case of error
+		_ = srv.userDao.UpdatesMember(srv.DB(), member.ID, map[string]interface{}{
+			"mem020": "N",
+		})
+		return nil, err
+	}
+
+	// Get language-specific response
+	var result string
+	switch req.Syslang {
+	case 1:
+		result = fmt.Sprintf("Balance change completed, amount: %s", req.Money)
+	default:
+		result = fmt.Sprintf("余额变更完成，金额: %s", req.Money)
+	}
+
+	return &view.ChangeBalanceResp{
+		Result: result,
+	}, nil
+}
+
+// CheckLaunder checks if a member has too many transactions in the last minute
+func (srv *publicApiService) CheckLaunder(tx *gorm.DB, avResp *view.AgentVerifyResp, member *db.Member) (bool, error) {
+	// Get transactions in last minute
+	count, err := srv.inOutMDao.CountTransactionsInLastMinute(tx, member.ID)
+	if err != nil {
+		xlog.Errorf("error to count transactions in last minute, err:%+v", err)
+		return false, err
+	}
+
+	if count > 9 {
+		// Create alert message
+		lastTime := time.Now().Add(-1 * time.Minute)
+		nowTime := time.Now()
+		message := fmt.Sprintf("請注意! 會員帳號 : %s從%s~%s已有%d次,轉帳紀錄!",
+			member.User,
+			lastTime.Format("2006-01-02 15:04:05"),
+			nowTime.Format("2006-01-02 15:04:05"),
+			count,
+		)
+		message += fmt.Sprintf(" 請與代理商 : %s, skype群組%s  確認",
+			avResp.Agent.Name,
+			avResp.AgentsLoginPass.Skyname,
+		)
+
+		// Insert alert message
+		alertMsg := &db.AlertMessage{
+			Mid:          member.ID,
+			Message:      message,
+			Status:       0,
+			ErrorTime:    nowTime,
+			UnierrorTime: nowTime.Unix(),
+			Operator:     "", // 设置默认操作者
+		}
+		_, err = srv.alertMessageDao.Create(tx, alertMsg)
+		if err != nil {
+			xlog.Errorf("error to insert alert message, err:%+v", err)
+			return false, err
+		}
+
+		// Update member status
+		err = srv.userDao.UpdatesMember(tx, member.ID, map[string]interface{}{
+			"mem020": "Y",
+		})
+		if err != nil {
+			xlog.Errorf("error to update member status, err:%+v", err)
+			return false, err
+		}
+
+		return true, nil
+	}
+
+	return false, nil
+}
+
+// CheckDoubleDeals checks for duplicate transactions within a short time window
+func (srv *publicApiService) CheckDoubleDeals(ctx context.Context, memberID int64, amount decimal.Decimal, orderNum string) (int, error) {
+	inOutM, err := srv.inOutMDao.GetLastTransaction(srv.DB(), memberID, orderNum)
+	if err != nil {
+		xlog.Errorf("error to get last transaction, err:%+v", err)
+		return 0, err
+	}
+	if inOutM == nil {
+		return 0, nil
+	}
+
+	// Check if order numbers match when orderNum is provided
+	if orderNum != "" && inOutM.Iom008 == orderNum {
+		return 3, nil
+	}
+
+	// Get current time
+	now := time.Now()
+
+	// Check if the transaction is within 5 seconds and has the same amount
+	if now.Sub(inOutM.Iom002).Seconds() < 5 && amount.Equal(inOutM.Iom004) {
+		return 1, nil
+	}
+
+	return 0, nil
 }

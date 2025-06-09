@@ -7,6 +7,12 @@ import (
 	"gorm.io/gorm"
 )
 
+// MemberAccountInfo represents basic member account information
+type MemberAccountInfo struct {
+	Account  string `gorm:"column:mem002"`
+	Username string `gorm:"column:mem004"`
+}
+
 type UserDao interface {
 	QueryByID(tx *gorm.DB, id int64) (*Member, error)
 	QueryByAccountAndPwd(tx *gorm.DB, account, passwd string) (*Member, error)
@@ -17,6 +23,7 @@ type UserDao interface {
 	UpdatesMember(tx *gorm.DB, userID int64, data map[string]interface{}) error
 	GetMemberCountByAgentID(tx *gorm.DB, agentID int64) (currentCount int, err error)
 	QueryByAgentID(tx *gorm.DB, agentID int64) ([]*Member, error)
+	GetMemberAccountInfo(tx *gorm.DB, memberID int64) (*MemberAccountInfo, error)
 }
 
 type userDao struct{}
@@ -89,6 +96,15 @@ func (dao *userDao) QueryByAgentID(tx *gorm.DB, agentID int64) ([]*Member, error
 		return nil, err
 	}
 	return members, nil
+}
+
+func (dao *userDao) GetMemberAccountInfo(tx *gorm.DB, memberID int64) (*MemberAccountInfo, error) {
+	var member MemberAccountInfo
+	err := tx.Raw("SELECT mem002, mem004 FROM member WHERE mem001 = ?", memberID).Scan(&member).Error
+	if err != nil {
+		return nil, err
+	}
+	return &member, nil
 }
 
 const TableNameMember = "member"

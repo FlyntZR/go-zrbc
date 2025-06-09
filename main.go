@@ -90,8 +90,11 @@ func Start() {
 	betLimitDao := db.NewBetLimitDefaultDao()
 	memberDtlDao := db.NewMemberDtlDao()
 	gameTypeDao := db.NewGameTypeDao()
+	inOutMDao := db.NewInOutMDao()
+	logAgeCashChangeDao := db.NewLogAgeCashChangeDao()
+	alertMessageDao := db.NewAlertMessageDao()
 
-	userSrv := pService.NewUserService(sess, userDao, apiurlDao, wechatURLDao, agentsLoginPassDao, agentDao, memLoginDao, bet02Dao, agentDtlDao, betLimitDao, memberDtlDao, gameTypeDao, s3Client, redisCli)
+	userSrv := pService.NewPublicApiService(sess, userDao, apiurlDao, wechatURLDao, agentsLoginPassDao, agentDao, memLoginDao, bet02Dao, agentDtlDao, betLimitDao, memberDtlDao, gameTypeDao, inOutMDao, logAgeCashChangeDao, alertMessageDao, s3Client, redisCli)
 	s3Srv := sService.NewS3Service()
 	webSrv := wService.NewWebService(sess, barrageDao, s3Client, redisCli)
 
