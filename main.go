@@ -8,8 +8,8 @@ import (
 	awsS3 "go-zrbc/pkg/oss"
 	"go-zrbc/pkg/xlog"
 	"go-zrbc/service"
+	pService "go-zrbc/service/public"
 	sService "go-zrbc/service/s3"
-	uService "go-zrbc/service/user"
 	wService "go-zrbc/service/web"
 	"go-zrbc/wschannel"
 
@@ -91,7 +91,7 @@ func Start() {
 	memberDtlDao := db.NewMemberDtlDao()
 	gameTypeDao := db.NewGameTypeDao()
 
-	userSrv := uService.NewUserService(sess, userDao, apiurlDao, wechatURLDao, agentsLoginPassDao, agentDao, memLoginDao, bet02Dao, agentDtlDao, betLimitDao, memberDtlDao, gameTypeDao, s3Client, redisCli)
+	userSrv := pService.NewUserService(sess, userDao, apiurlDao, wechatURLDao, agentsLoginPassDao, agentDao, memLoginDao, bet02Dao, agentDtlDao, betLimitDao, memberDtlDao, gameTypeDao, s3Client, redisCli)
 	s3Srv := sService.NewS3Service()
 	webSrv := wService.NewWebService(sess, barrageDao, s3Client, redisCli)
 

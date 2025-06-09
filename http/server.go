@@ -5,8 +5,8 @@ import (
 	"go-zrbc/config"
 	. "go-zrbc/pkg/http/handler"
 
+	pService "go-zrbc/service/public"
 	s3Service "go-zrbc/service/s3"
-	uService "go-zrbc/service/user"
 	wService "go-zrbc/service/web"
 
 	. "go-zrbc/pkg/http/middleware"
@@ -17,20 +17,20 @@ import (
 )
 
 type Server struct {
-	webService  wService.WebService
-	userService uService.UserService
-	s3Service   s3Service.S3Service
+	webService    wService.WebService
+	pubApiService pService.PublicApiService
+	s3Service     s3Service.S3Service
 }
 
 func NewServer(
 	webService wService.WebService,
-	userService uService.UserService,
+	userService pService.PublicApiService,
 	s3Service s3Service.S3Service,
 ) *Server {
 	return &Server{
-		webService:  webService,
-		userService: userService,
-		s3Service:   s3Service,
+		webService:    webService,
+		pubApiService: userService,
+		s3Service:     s3Service,
 	}
 }
 
@@ -70,8 +70,8 @@ func (s *Server) Run() {
 	WebHandler := NewWebHandler(s.webService)
 	WebHandler.SetRouter(r)
 
-	UserHandler := NewUserHandler(s.userService)
-	UserHandler.SetRouter(r)
+	PublicApiHandler := NewPublicApiHandler(s.pubApiService)
+	PublicApiHandler.SetRouter(r)
 
 	S3Handler := NewOssHandler(s.s3Service)
 	S3Handler.SetRouter(r)

@@ -64,15 +64,18 @@ var ChipsMap = map[int]string{
 
 var ChipsCheck = []int{1, 5, 10, 20, 50, 100, 500, 1000, 5000, 10000, 20000, 50000, 100000, 200000, 1000000, 5000000, 10000000, 20000000, 50000000, 10000000, 20000000, 50000000, 100000000}
 
-type UserService interface {
+type PublicApiService interface {
 	//用户信息
 	GetUserInfo(ctx context.Context, userID int64) (*view.GetUserInfoResp, error)
 	GetUserByAccountAndPwd(ctx context.Context, account, pwd string) (*view.GetUserInfoResp, error)
+	GetUserByAccount(ctx context.Context, account string) (*view.MemberCache, error)
 	SigninGame(ctx context.Context, req *view.SigninGameReq) (*view.SigninGameResp, error)
 	MemberRegister(ctx context.Context, req *view.MemberRegisterReq) (*view.MemberRegisterResp, error)
 	AgentVerify(ctx context.Context, req *view.AgentVerifyReq) (*view.AgentVerifyResp, error)
 	EditLimit(ctx context.Context, req *view.EditLimitReq) (*view.EditLimitResp, error)
 	LogoutGame(ctx context.Context, req *view.LogoutGameReq) (*view.LogoutGameResp, error)
+	ChangePassword(ctx context.Context, req *view.ChangePasswordReq) (*view.ChangePasswordResp, error)
+	GetAgentBalance(ctx context.Context, req *view.GetAgentBalanceReq) (*view.GetAgentBalanceResp, error)
 }
 
 type MemDtlDao interface {
@@ -84,7 +87,7 @@ type BetLimitDefaultDao interface {
 	QueryByGtype(tx *gorm.DB, gtype int) ([]*db.BetLimitDefault, error)
 }
 
-type userService struct {
+type publicApiService struct {
 	userDao            db.UserDao
 	apiurlDao          db.ApiurlDao
 	wechatURLDao       db.WechatURLDao
@@ -118,8 +121,8 @@ func NewUserService(
 
 	s3Client *s3.Client,
 	redisCli *redis.Client,
-) UserService {
-	srv := &userService{
+) PublicApiService {
+	srv := &publicApiService{
 		userDao:            userDao,
 		apiurlDao:          apiurlDao,
 		wechatURLDao:       wechatURLDao,
@@ -139,7 +142,7 @@ func NewUserService(
 	return srv
 }
 
-func (srv *userService) GetUserInfo(ctx context.Context, userID int64) (*view.GetUserInfoResp, error) {
+func (srv *publicApiService) GetUserInfo(ctx context.Context, userID int64) (*view.GetUserInfoResp, error) {
 	var ret *db.Member
 	var err error
 	err = srv.Tx(func(tx *gorm.DB) error {
@@ -160,7 +163,7 @@ func (srv *userService) GetUserInfo(ctx context.Context, userID int64) (*view.Ge
 	return &resp, nil
 }
 
-func (srv *userService) GetUserByAccountAndPwd(ctx context.Context, account, pwd string) (*view.GetUserInfoResp, error) {
+func (srv *publicApiService) GetUserByAccountAndPwd(ctx context.Context, account, pwd string) (*view.GetUserInfoResp, error) {
 	var ret *db.Member
 	var err error
 
@@ -182,7 +185,7 @@ func (srv *userService) GetUserByAccountAndPwd(ctx context.Context, account, pwd
 	return &resp, nil
 }
 
-func (srv *userService) GetUserByAccount(ctx context.Context, account string) (*view.MemberCache, error) {
+func (srv *publicApiService) GetUserByAccount(ctx context.Context, account string) (*view.MemberCache, error) {
 	var ret *db.Member
 	var err error
 
@@ -228,7 +231,7 @@ func (srv *userService) GetUserByAccount(ctx context.Context, account string) (*
 	return mem, nil
 }
 
-func (srv *userService) validateRequest(user, password string, isTest bool) error {
+func (srv *publicApiService) validateRequest(user, password string, isTest bool) error {
 	if !isTest {
 		if password == "" {
 			return utils.ErrInvalidPasswordEmpty
@@ -265,7 +268,7 @@ func processUI(ui int) int {
 	}
 }
 
-func (srv *userService) getAPIURL(code int) (string, error) {
+func (srv *publicApiService) getAPIURL(code int) (string, error) {
 	apiURL, err := srv.apiurlDao.QueryByCode(srv.DB(), code)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -280,7 +283,7 @@ func (srv *userService) getAPIURL(code int) (string, error) {
 	return apiURL.URL, nil
 }
 
-func (srv *userService) getWechatURL() (string, error) {
+func (srv *publicApiService) getWechatURL() (string, error) {
 	var urlData *db.WechatURL
 	var err error
 	err = srv.Tx(func(tx *gorm.DB) error {
@@ -319,7 +322,7 @@ func GetClientIP(c *gin.Context) string {
 	return c.ClientIP()
 }
 
-func (srv *userService) SigninGame(ctx context.Context, req *view.SigninGameReq) (*view.SigninGameResp, error) {
+func (srv *publicApiService) SigninGame(ctx context.Context, req *view.SigninGameReq) (*view.SigninGameResp, error) {
 	if err := utils.CheckTimestamp(req.Timestamp); err != nil {
 		xlog.Errorf("error to check timestamp, err:%+v", err)
 		return nil, err
@@ -577,7 +580,7 @@ func (srv *userService) SigninGame(ctx context.Context, req *view.SigninGameReq)
 	}, nil
 }
 
-func (srv *userService) AgentVerify(ctx context.Context, req *view.AgentVerifyReq) (*view.AgentVerifyResp, error) {
+func (srv *publicApiService) AgentVerify(ctx context.Context, req *view.AgentVerifyReq) (*view.AgentVerifyResp, error) {
 	// Validate request parameters
 	if req.VendorID == "" && req.Signature == "" {
 		return nil, utils.ErrAgentIDAndSignatureFormatError
@@ -618,7 +621,7 @@ func (srv *userService) AgentVerify(ctx context.Context, req *view.AgentVerifyRe
 	}, nil
 }
 
-func (srv *userService) validateMemberRegisterInput(req *view.MemberRegisterReq) error {
+func (srv *publicApiService) validateMemberRegisterInput(req *view.MemberRegisterReq) error {
 	// Password validation
 	if req.Password == "" {
 		return utils.ErrParamInvalidPasswordEmpty
@@ -704,7 +707,7 @@ func validateChips(chips string) (string, error) {
 	return chipsStr, nil
 }
 
-func (srv *userService) MemberRegister(ctx context.Context, req *view.MemberRegisterReq) (*view.MemberRegisterResp, error) {
+func (srv *publicApiService) MemberRegister(ctx context.Context, req *view.MemberRegisterReq) (*view.MemberRegisterResp, error) {
 	if err := utils.CheckTimestamp(req.Timestamp); err != nil {
 		xlog.Errorf("error to check timestamp, err:%+v", err)
 		return nil, err
@@ -1109,7 +1112,7 @@ func (srv *userService) MemberRegister(ctx context.Context, req *view.MemberRegi
 }
 
 // GetLimit groups bet limits by game type and returns concatenated limit IDs
-func (srv *userService) GetLimit(bLDs []*db.BetLimitDefault, limitTypes []string) (map[string]string, error) {
+func (srv *publicApiService) GetLimit(bLDs []*db.BetLimitDefault, limitTypes []string) (map[string]string, error) {
 	// Initialize limit arrays for each game type
 	set101_14 := make([]string, 0)
 	set102_14 := make([]string, 0)
@@ -1190,7 +1193,7 @@ func (srv *userService) GetLimit(bLDs []*db.BetLimitDefault, limitTypes []string
 	return result, nil
 }
 
-func (srv *userService) GetOneUserDtl(id int64, lv int) (map[string]map[string]string, error) {
+func (srv *publicApiService) GetOneUserDtl(id int64, lv int) (map[string]map[string]string, error) {
 	result := make(map[string]map[string]string)
 
 	// Query based on level
@@ -1308,7 +1311,7 @@ func (srv *userService) GetOneUserDtl(id int64, lv int) (map[string]map[string]s
 	return result, nil
 }
 
-func (srv *userService) GetOneUserBase(table string, id int64) (map[string]interface{}, error) {
+func (srv *publicApiService) GetOneUserBase(table string, id int64) (map[string]interface{}, error) {
 	var query string
 	switch table {
 	case "agent":
@@ -1357,7 +1360,7 @@ func (srv *userService) GetOneUserBase(table string, id int64) (map[string]inter
 	return result, nil
 }
 
-func (srv *userService) EditLimit(ctx context.Context, req *view.EditLimitReq) (*view.EditLimitResp, error) {
+func (srv *publicApiService) EditLimit(ctx context.Context, req *view.EditLimitReq) (*view.EditLimitResp, error) {
 	if err := utils.CheckTimestamp(req.Timestamp); err != nil {
 		xlog.Errorf("error to check timestamp, err:%+v", err)
 		return nil, err
@@ -1540,7 +1543,7 @@ func (srv *userService) EditLimit(ctx context.Context, req *view.EditLimitReq) (
 	return &view.EditLimitResp{Result: "操作成功"}, nil
 }
 
-func (srv *userService) LogoutGame(ctx context.Context, req *view.LogoutGameReq) (*view.LogoutGameResp, error) {
+func (srv *publicApiService) LogoutGame(ctx context.Context, req *view.LogoutGameReq) (*view.LogoutGameResp, error) {
 	if err := utils.CheckTimestamp(req.Timestamp); err != nil {
 		xlog.Errorf("error to check timestamp, err:%+v", err)
 		return nil, err
@@ -1603,5 +1606,130 @@ func (srv *userService) LogoutGame(ctx context.Context, req *view.LogoutGameReq)
 
 	return &view.LogoutGameResp{
 		Result: "操作成功",
+	}, nil
+}
+
+func (srv *publicApiService) ChangePassword(ctx context.Context, req *view.ChangePasswordReq) (*view.ChangePasswordResp, error) {
+	if err := utils.CheckTimestamp(req.Timestamp); err != nil {
+		xlog.Errorf("error to check timestamp, err:%+v", err)
+		return nil, err
+	}
+
+	// Verify agent
+	avResp, err := srv.AgentVerify(ctx, &view.AgentVerifyReq{VendorID: req.VendorID, Signature: req.Signature})
+	if err != nil {
+		xlog.Errorf("error to verify agent, err:%+v", err)
+		return nil, err
+	}
+
+	// Validate input
+	if req.User == "" {
+		return nil, utils.ErrInvalidAccountEmpty
+	}
+	if req.NewPassword == "" {
+		return nil, utils.ErrInvalidPasswordEmpty
+	}
+
+	// Check password format
+	matched, _ := regexp.MatchString(`^[\x{4e00}-\x{9fa5}]{1,30}$`, req.NewPassword)
+	if matched {
+		return nil, utils.ErrInvalidPasswordChinese
+	}
+	if len(req.NewPassword) <= 5 {
+		return nil, utils.ErrInvalidPasswordLengthShort
+	}
+	if len(req.NewPassword) >= 65 {
+		return nil, utils.ErrInvalidPasswordLengthLong
+	}
+
+	// Get member info
+	member, err := srv.userDao.QueryByAccount(srv.DB(), req.User)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, utils.ErrParamInvalidAccountNotExist
+		}
+		return nil, err
+	}
+
+	// Verify member belongs to agent
+	if member.Mem011 != avResp.Agent.ID {
+		return nil, utils.ErrParamInvalidAccountNotExist
+	}
+
+	// Check if new password is same as old password
+	if member.Password == req.NewPassword {
+		return nil, utils.ErrParamInvalidPasswordSame
+	}
+
+	// Update password in database
+	err = srv.Tx(func(tx *gorm.DB) error {
+		err := srv.userDao.UpdatesMember(tx, member.ID, map[string]interface{}{
+			"mem003": req.NewPassword,
+		})
+		if err != nil {
+			xlog.Errorf("Failed to update member password, err:%+v", err)
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Update Redis cache
+	member.Password = req.NewPassword
+	mem := DBToViewUserCache(member)
+	userRedisData, marshalErr := json.Marshal(mem)
+	if marshalErr != nil {
+		xlog.Warnf("Failed to marshal user info for Redis: %v", marshalErr)
+	} else {
+		redisErr := srv.redisCli.HSet(ctx, "user", req.User, string(userRedisData)).Err()
+		if redisErr != nil {
+			xlog.Warnf("Failed to store user info in Redis: %v", redisErr)
+		}
+	}
+
+	// Get language-specific response
+	var result string
+	switch req.Syslang {
+	case 0:
+		result = fmt.Sprintf("密码:%s,修改完成", req.NewPassword)
+	case 1:
+		result = fmt.Sprintf("Password:%s,Change completed", req.NewPassword)
+	default:
+		result = fmt.Sprintf("密码:%s,修改完成", req.NewPassword)
+	}
+
+	return &view.ChangePasswordResp{
+		Result: result,
+	}, nil
+}
+
+func (srv *publicApiService) GetAgentBalance(ctx context.Context, req *view.GetAgentBalanceReq) (*view.GetAgentBalanceResp, error) {
+	// Validate timestamp
+	if err := utils.CheckTimestamp(req.Timestamp); err != nil {
+		xlog.Errorf("error to check timestamp, err:%+v", err)
+		return nil, err
+	}
+
+	// Verify agent
+	avResp, err := srv.AgentVerify(ctx, &view.AgentVerifyReq{VendorID: req.VendorID, Signature: req.Signature})
+	if err != nil {
+		xlog.Errorf("error to verify agent, err:%+v", err)
+		return nil, err
+	}
+
+	// Get agent's balance
+	agent, err := srv.agentDao.QueryByID(srv.DB(), avResp.Agent.ID)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, utils.ErrParamInvalidAgentNotExist
+		}
+		xlog.Errorf("error to get agent balance, err:%+v", err)
+		return nil, err
+	}
+
+	return &view.GetAgentBalanceResp{
+		Result: agent.Cash,
 	}, nil
 }

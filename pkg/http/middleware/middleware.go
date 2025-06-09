@@ -14,7 +14,7 @@ import (
 	"go-zrbc/config"
 	"go-zrbc/pkg/token"
 	"go-zrbc/pkg/xlog"
-	service "go-zrbc/service/user"
+	service "go-zrbc/service/public"
 
 	commonresp "go-zrbc/pkg/http/response"
 

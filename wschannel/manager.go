@@ -24,7 +24,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	userSrv "go-zrbc/service/user"
+	pubSrv "go-zrbc/service/public"
 	webSrv "go-zrbc/service/web"
 )
 
@@ -45,12 +45,12 @@ type Server struct {
 	clients map[string]*Client
 
 	webService  webSrv.WebService
-	userService userSrv.UserService
+	userService pubSrv.PublicApiService
 	redisCli    *redis.Client
 }
 
 func NewWsServer(addr string, webService webSrv.WebService,
-	userService userSrv.UserService) *Server {
+	userService pubSrv.PublicApiService) *Server {
 	redisAddr := config.Global.Redis.Addr
 	redisDB := config.Global.Redis.DB
 	redisCli := redis.NewClient(&redis.Options{

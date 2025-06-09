@@ -2,10 +2,11 @@ package http
 
 import (
 	"context"
+	"fmt"
 	"go-zrbc/pkg/http/middleware"
 	commonresp "go-zrbc/pkg/http/response"
 	"go-zrbc/pkg/xlog"
-	service "go-zrbc/service/user"
+	service "go-zrbc/service/public"
 	"go-zrbc/view"
 	"strconv"
 	"time"
@@ -13,22 +14,80 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type UserHandler struct {
-	srv service.UserService
+type PublicApiHandler struct {
+	srv service.PublicApiService
 }
 
-func NewUserHandler(srv service.UserService) *UserHandler {
-	return &UserHandler{
+func NewPublicApiHandler(srv service.PublicApiService) *PublicApiHandler {
+	return &PublicApiHandler{
 		srv: srv,
 	}
 }
 
-func (h *UserHandler) SetRouter(r *gin.Engine) {
+func (h *PublicApiHandler) SetRouter(r *gin.Engine) {
+	r.POST("/api/public/Gateway.php", h.handlePublicApi)
+
 	r.GET("/v1/user_info", h.GetUserInfo)
 	r.POST("/v1/signin_game", h.SigninGame)
 	r.POST("/v1/member_register", h.MemberRegister)
 	r.POST("/v1/edit_limit", h.EditLimit)
 	r.POST("/v1/logout_game", h.LogoutGame)
+	r.POST("/v1/change_password", h.ChangePassword)
+	r.POST("/v1/get_agent_balance", h.GetAgentBalance)
+}
+
+func (h *PublicApiHandler) handlePublicApi(c *gin.Context) {
+	// Get command from request
+	cmd := c.PostForm("cmd")
+	if cmd == "" {
+		cmd = c.Query("cmd")
+	}
+
+	// Handle GetMemberReport command
+	if cmd == "GetMemberReport" {
+		commonresp.JsonResp(c, map[string]interface{}{
+			"errorCode": 100,
+		})
+		return
+	}
+
+	// Check if command is in allowed list
+	passCommands := map[string]bool{
+		"GetAgentBalance":        true,
+		"MemberRegister":         true,
+		"EditLimit":              true,
+		"Hello":                  true,
+		"MemberLogin":            true,
+		"GetDateTimeReport":      true,
+		"GetTipReport":           true,
+		"EnableorDisablemem":     true,
+		"GetMemberTradeReport":   true,
+		"LogoutGame":             true,
+		"GetUnsettleReport":      true,
+		"GetDateTimeReportOld":   true,
+		"GetDateTimeCountReport": true,
+	}
+
+	// Handle command
+	switch cmd {
+	case "MemberRegister":
+		h.MemberRegister(c)
+	case "LogoutGame":
+		h.LogoutGame(c)
+	case "EditLimit":
+		h.EditLimit(c)
+	case "ChangePassword":
+		h.ChangePassword(c)
+	case "GetAgentBalance":
+		h.GetAgentBalance(c)
+	// Add other command handlers as needed
+	default:
+		if !passCommands[cmd] {
+			xlog.Errorf("Invalid command: %s", cmd)
+			commonresp.ErrResp(c, fmt.Errorf("invalid command"))
+			return
+		}
+	}
 }
 
 // swagger:route GET /v1/user_info 用户接口 GetUserInfo
@@ -37,9 +96,9 @@ func (h *UserHandler) SetRouter(r *gin.Engine) {
 //
 //	200: GetUserInfoResp
 //	500: CommonError
-func (handler *UserHandler) GetUserInfo(c *gin.Context) {
+func (h *PublicApiHandler) GetUserInfo(c *gin.Context) {
 	userID := middleware.GetUserID(c)
-	resp, err := handler.srv.GetUserInfo(context.TODO(), userID)
+	resp, err := h.srv.GetUserInfo(context.TODO(), userID)
 	if err != nil {
 		commonresp.ErrResp(c, err)
 		return
@@ -47,7 +106,7 @@ func (handler *UserHandler) GetUserInfo(c *gin.Context) {
 	commonresp.JsonResp(c, resp)
 }
 
-// swagger:route POST /v1/signin_game 用户接口 SigninGame
+// swagger:route POST /v1/signin_game api渠道接口 SigninGame
 // 开游戏
 // consumes:
 //   - multipart/form-data
@@ -56,7 +115,7 @@ func (handler *UserHandler) GetUserInfo(c *gin.Context) {
 //
 //	200: SigninGameResp
 //	500: CommonError
-func (handler *UserHandler) SigninGame(c *gin.Context) {
+func (h *PublicApiHandler) SigninGame(c *gin.Context) {
 	var req view.SigninGameReq
 	req.VendorID = c.PostForm("vendorId")
 	req.Signature = c.PostForm("signature")
@@ -94,7 +153,7 @@ func (handler *UserHandler) SigninGame(c *gin.Context) {
 	req.Syslang = syslang
 
 	xlog.Debugf("SigninGame req: %+v", &req)
-	resp, err := handler.srv.SigninGame(c, &req)
+	resp, err := h.srv.SigninGame(c, &req)
 	if err != nil {
 		commonresp.ErrResp(c, err)
 		return
@@ -102,7 +161,7 @@ func (handler *UserHandler) SigninGame(c *gin.Context) {
 	commonresp.JsonResp(c, resp)
 }
 
-// swagger:route POST /v1/member_register 用户接口 MemberRegister
+// swagger:route POST /v1/member_register api渠道接口 MemberRegister
 // 注册用户
 // consumes:
 //   - multipart/form-data
@@ -111,7 +170,7 @@ func (handler *UserHandler) SigninGame(c *gin.Context) {
 //
 //	200: MemberRegisterResp
 //	500: CommonError
-func (handler *UserHandler) MemberRegister(c *gin.Context) {
+func (h *PublicApiHandler) MemberRegister(c *gin.Context) {
 	var req view.MemberRegisterReq
 	req.VendorID = c.PostForm("vendorId")
 	req.Signature = c.PostForm("signature")
@@ -161,7 +220,7 @@ func (handler *UserHandler) MemberRegister(c *gin.Context) {
 	req.Syslang = syslang
 
 	xlog.Debugf("MemberRegister req: %+v", &req)
-	resp, err := handler.srv.MemberRegister(c, &req)
+	resp, err := h.srv.MemberRegister(c, &req)
 	if err != nil {
 		commonresp.ErrResp(c, err)
 		return
@@ -169,7 +228,7 @@ func (handler *UserHandler) MemberRegister(c *gin.Context) {
 	commonresp.JsonResp(c, resp)
 }
 
-// swagger:route POST /v1/edit_limit 用户接口 EditLimit
+// swagger:route POST /v1/edit_limit api渠道接口 EditLimit
 // 修改限额
 // consumes:
 //   - multipart/form-data
@@ -178,7 +237,7 @@ func (handler *UserHandler) MemberRegister(c *gin.Context) {
 //
 //	200: EditLimitResp
 //	500: CommonError
-func (handler *UserHandler) EditLimit(c *gin.Context) {
+func (h *PublicApiHandler) EditLimit(c *gin.Context) {
 	var req view.EditLimitReq
 	req.VendorID = c.PostForm("vendorId")
 	req.Signature = c.PostForm("signature")
@@ -221,7 +280,7 @@ func (handler *UserHandler) EditLimit(c *gin.Context) {
 	req.Syslang = syslang
 
 	xlog.Debugf("EditLimit req: %+v", &req)
-	resp, err := handler.srv.EditLimit(c, &req)
+	resp, err := h.srv.EditLimit(c, &req)
 	if err != nil {
 		commonresp.ErrResp(c, err)
 		return
@@ -229,7 +288,7 @@ func (handler *UserHandler) EditLimit(c *gin.Context) {
 	commonresp.JsonResp(c, resp)
 }
 
-// swagger:route POST /v1/logout_game 用户接口 LogoutGame
+// swagger:route POST /v1/logout_game api渠道接口 LogoutGame
 // 登出游戏
 // consumes:
 //   - multipart/form-data
@@ -238,7 +297,7 @@ func (handler *UserHandler) EditLimit(c *gin.Context) {
 //
 //	200: LogoutGameResp
 //	500: CommonError
-func (handler *UserHandler) LogoutGame(c *gin.Context) {
+func (h *PublicApiHandler) LogoutGame(c *gin.Context) {
 	var req view.LogoutGameReq
 	req.VendorID = c.PostForm("vendorId")
 	req.Signature = c.PostForm("signature")
@@ -258,7 +317,81 @@ func (handler *UserHandler) LogoutGame(c *gin.Context) {
 	req.Syslang = syslang
 
 	xlog.Debugf("LogoutGame req: %+v", &req)
-	resp, err := handler.srv.LogoutGame(c, &req)
+	resp, err := h.srv.LogoutGame(c, &req)
+	if err != nil {
+		commonresp.ErrResp(c, err)
+		return
+	}
+	commonresp.JsonResp(c, resp)
+}
+
+// swagger:route POST /v1/change_password api渠道接口 ChangePassword
+// 修改密码
+// consumes:
+//   - multipart/form-data
+//
+// responses:
+//
+//	200: ChangePasswordResp
+//	500: CommonError
+func (h *PublicApiHandler) ChangePassword(c *gin.Context) {
+	var req view.ChangePasswordReq
+	req.VendorID = c.PostForm("vendorId")
+	req.Signature = c.PostForm("signature")
+	req.User = c.PostForm("user")
+	req.NewPassword = c.PostForm("newpassword")
+	timestamp, err := strconv.ParseInt(c.PostForm("timestamp"), 10, 64)
+	if err != nil {
+		xlog.Warnf("timestamp is not a number, use default value 0")
+		// 方便测试自动时间戳
+		timestamp = time.Now().Unix()
+	}
+	req.Timestamp = timestamp
+	syslang, err := strconv.Atoi(c.PostForm("syslang"))
+	if err != nil {
+		xlog.Warnf("syslang is not a number, use default value 0")
+		syslang = 0
+	}
+	req.Syslang = syslang
+
+	xlog.Debugf("ChangePassword req: %+v", &req)
+	resp, err := h.srv.ChangePassword(c, &req)
+	if err != nil {
+		commonresp.ErrResp(c, err)
+		return
+	}
+	commonresp.JsonResp(c, resp)
+}
+
+// swagger:route POST /v1/get_agent_balance api渠道接口 GetAgentBalance
+// 获取代理商余额
+// consumes:
+//   - multipart/form-data
+//
+// responses:
+//
+//	200: GetAgentBalanceResp
+//	500: CommonError
+func (h *PublicApiHandler) GetAgentBalance(c *gin.Context) {
+	var req view.GetAgentBalanceReq
+	req.VendorID = c.PostForm("vendorId")
+	req.Signature = c.PostForm("signature")
+	timestamp, err := strconv.ParseInt(c.PostForm("timestamp"), 10, 64)
+	if err != nil {
+		xlog.Warnf("timestamp is not a number, use default value 0")
+		// 方便测试自动时间戳
+		timestamp = time.Now().Unix()
+	}
+	req.Timestamp = timestamp
+	syslang, err := strconv.Atoi(c.PostForm("syslang"))
+	if err != nil {
+		xlog.Warnf("syslang is not a number, use default value 0")
+		syslang = 0
+	}
+	req.Syslang = syslang
+
+	xlog.Debugf("GetAgentBalance req: %+v", &req)
+	resp, err := h.srv.GetAgentBalance(c, &req)
 	if err != nil {
 		commonresp.ErrResp(c, err)
 		return

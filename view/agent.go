@@ -1,5 +1,7 @@
 package view
 
+import "github.com/shopspring/decimal"
+
 //swagger:model
 type Agent struct {
 	// sn
@@ -146,4 +148,26 @@ type AgentVerifyReq struct {
 type AgentVerifyResp struct {
 	Agent           *Agent           `json:"agent"`
 	AgentsLoginPass *AgentsLoginPass `json:"agentsLoginPass"`
+}
+
+//swagger:parameters GetAgentBalance
+type GetAgentBalanceReq struct {
+	// 代理商(aid)
+	// in:formData
+	VendorID string `json:"vendorId"`
+	// 代理商标识符
+	// in:formData
+	Signature string `json:"signature"`
+	// 时间戳
+	// in:formData
+	Timestamp int64 `json:"timestamp"`
+	// 0:中文, 1:英文 (非必要)
+	// in:formData
+	Syslang int `json:"syslang"`
+}
+
+//swagger:model
+type GetAgentBalanceResp struct {
+	// 代理商余额
+	Result decimal.Decimal `json:"result"`
 }

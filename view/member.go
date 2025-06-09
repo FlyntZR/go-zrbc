@@ -269,6 +269,33 @@ type MemberRegisterResp struct {
 	Result string `json:"result"`
 }
 
+// swagger:parameters ChangePassword
+type ChangePasswordReq struct {
+	// 代理商(aid)
+	// in:formData
+	VendorID string `json:"vendorId"`
+	// 代理商标识符
+	// in:formData
+	Signature string `json:"signature"`
+	// 帐号
+	// in:formData
+	User string `json:"user"`
+	// 新密码
+	// in:formData
+	NewPassword string `json:"newpassword"`
+	// 时间戳
+	// in:formData
+	Timestamp int64 `json:"timestamp"`
+	// 0:中文, 1:英文 (非必要)
+	// in:formData
+	Syslang int `json:"syslang"`
+}
+
+// swagger:model
+type ChangePasswordResp struct {
+	Result string `json:"result"`
+}
+
 // swagger:parameters EditLimit
 type EditLimitReq struct {
 	// 代理商(aid)
