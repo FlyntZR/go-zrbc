@@ -76,6 +76,7 @@ type PublicApiService interface {
 	LogoutGame(ctx context.Context, req *view.LogoutGameReq) (*view.LogoutGameResp, error)
 	ChangePassword(ctx context.Context, req *view.ChangePasswordReq) (*view.ChangePasswordResp, error)
 	GetAgentBalance(ctx context.Context, req *view.GetAgentBalanceReq) (*view.GetAgentBalanceResp, error)
+	GetBalance(ctx context.Context, req *view.GetBalanceReq) (*view.GetBalanceResp, error)
 }
 
 type MemDtlDao interface {
@@ -1417,8 +1418,8 @@ func (srv *publicApiService) EditLimit(ctx context.Context, req *view.EditLimitR
 
 	// Verify member belongs to agent
 	if member.Mem011 != avResp.Agent.ID {
-		xlog.Errorf("error to verify member belongs to agent, err:%+v", utils.ErrParamInvalidAccountNotExist)
-		return nil, utils.ErrParamInvalidAccountNotExist
+		xlog.Errorf("error to verify member belongs to agent, err:%+v", utils.ErrParamInvalidAccountNotBelongToAgent)
+		return nil, utils.ErrParamInvalidAccountNotBelongToAgent
 	}
 
 	insinfo := make(map[string]interface{})
@@ -1570,8 +1571,8 @@ func (srv *publicApiService) LogoutGame(ctx context.Context, req *view.LogoutGam
 
 		// Verify member belongs to agent
 		if member.Mem011 != avResp.Agent.ID {
-			xlog.Errorf("error to verify member belongs to agent, err:%+v", utils.ErrParamInvalidAccountNotExist)
-			return nil, utils.ErrParamInvalidAccountNotExist
+			xlog.Errorf("error to verify member belongs to agent, err:%+v", utils.ErrParamInvalidAccountNotBelongToAgent)
+			return nil, utils.ErrParamInvalidAccountNotBelongToAgent
 		}
 
 		memberIDs = append(memberIDs, member.ID)
@@ -1653,7 +1654,8 @@ func (srv *publicApiService) ChangePassword(ctx context.Context, req *view.Chang
 
 	// Verify member belongs to agent
 	if member.Mem011 != avResp.Agent.ID {
-		return nil, utils.ErrParamInvalidAccountNotExist
+		xlog.Errorf("error to verify member belongs to agent, err:%+v", utils.ErrParamInvalidAccountNotBelongToAgent)
+		return nil, utils.ErrParamInvalidAccountNotBelongToAgent
 	}
 
 	// Check if new password is same as old password
@@ -1731,5 +1733,42 @@ func (srv *publicApiService) GetAgentBalance(ctx context.Context, req *view.GetA
 
 	return &view.GetAgentBalanceResp{
 		Result: agent.Cash,
+	}, nil
+}
+
+// GetBalance gets the balance for a member
+func (srv *publicApiService) GetBalance(ctx context.Context, req *view.GetBalanceReq) (*view.GetBalanceResp, error) {
+	// Validate timestamp
+	if err := utils.CheckTimestamp(req.Timestamp); err != nil {
+		xlog.Errorf("error to check timestamp, err:%+v", err)
+		return nil, err
+	}
+
+	// Verify agent
+	avResp, err := srv.AgentVerify(ctx, &view.AgentVerifyReq{VendorID: req.VendorID, Signature: req.Signature})
+	if err != nil {
+		xlog.Errorf("error to verify agent, err:%+v", err)
+		return nil, err
+	}
+
+	// Get member by account
+	member, err := srv.userDao.QueryByAccount(srv.DB(), req.User)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			xlog.Error("no data")
+			return nil, utils.ErrParamInvalidAccountNotExist
+		}
+		xlog.Errorf("error to get member by account, err:%+v", err)
+		return nil, err
+	}
+
+	// Verify member belongs to agent
+	if member.Mem011 != avResp.Agent.ID {
+		xlog.Errorf("error to verify member belongs to agent, err:%+v", utils.ErrParamInvalidAccountNotBelongToAgent)
+		return nil, utils.ErrParamInvalidAccountNotBelongToAgent
+	}
+
+	return &view.GetBalanceResp{
+		Result: member.Cash,
 	}, nil
 }

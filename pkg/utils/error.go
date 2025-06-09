@@ -1,6 +1,8 @@
 package utils
 
-import "fmt"
+import (
+	"fmt"
+)
 
 // ErrorCode 定义错误码类型
 type ErrorCode int

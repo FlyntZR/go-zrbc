@@ -34,6 +34,7 @@ func (h *PublicApiHandler) SetRouter(r *gin.Engine) {
 	r.POST("/v1/logout_game", h.LogoutGame)
 	r.POST("/v1/change_password", h.ChangePassword)
 	r.POST("/v1/get_agent_balance", h.GetAgentBalance)
+	r.POST("/v1/get_balance", h.GetBalance)
 }
 
 func (h *PublicApiHandler) handlePublicApi(c *gin.Context) {
@@ -66,6 +67,9 @@ func (h *PublicApiHandler) handlePublicApi(c *gin.Context) {
 		"GetUnsettleReport":      true,
 		"GetDateTimeReportOld":   true,
 		"GetDateTimeCountReport": true,
+		"GetBalance":             true,
+		"ChangePassword":         true,
+		"SigninGame":             true,
 	}
 
 	// Handle command
@@ -80,6 +84,10 @@ func (h *PublicApiHandler) handlePublicApi(c *gin.Context) {
 		h.ChangePassword(c)
 	case "GetAgentBalance":
 		h.GetAgentBalance(c)
+	case "GetBalance":
+		h.GetBalance(c)
+	case "SigninGame":
+		h.SigninGame(c)
 	// Add other command handlers as needed
 	default:
 		if !passCommands[cmd] {
@@ -392,6 +400,43 @@ func (h *PublicApiHandler) GetAgentBalance(c *gin.Context) {
 
 	xlog.Debugf("GetAgentBalance req: %+v", &req)
 	resp, err := h.srv.GetAgentBalance(c, &req)
+	if err != nil {
+		commonresp.ErrResp(c, err)
+		return
+	}
+	commonresp.JsonResp(c, resp)
+}
+
+// swagger:route POST /v1/get_balance api渠道接口 GetBalance
+// 获取会员余额
+// consumes:
+//   - multipart/form-data
+//
+// responses:
+//
+//	200: GetBalanceResp
+//	500: CommonError
+func (h *PublicApiHandler) GetBalance(c *gin.Context) {
+	var req view.GetBalanceReq
+	req.VendorID = c.PostForm("vendorId")
+	req.Signature = c.PostForm("signature")
+	req.User = c.PostForm("user")
+	timestamp, err := strconv.ParseInt(c.PostForm("timestamp"), 10, 64)
+	if err != nil {
+		xlog.Warnf("timestamp is not a number, use default value 0")
+		// 方便测试自动时间戳
+		timestamp = time.Now().Unix()
+	}
+	req.Timestamp = timestamp
+	syslang, err := strconv.Atoi(c.PostForm("syslang"))
+	if err != nil {
+		xlog.Warnf("syslang is not a number, use default value 0")
+		syslang = 0
+	}
+	req.Syslang = syslang
+
+	xlog.Debugf("GetBalance req: %+v", &req)
+	resp, err := h.srv.GetBalance(c, &req)
 	if err != nil {
 		commonresp.ErrResp(c, err)
 		return

@@ -897,6 +897,47 @@ paths:
                     $ref: '#/responses/CommonError'
             tags:
                 - api渠道接口
+    /v1/get_balance:
+        post:
+            consumes:
+                - multipart/form-data
+            description: 获取会员余额
+            operationId: GetBalance
+            parameters:
+                - description: 代理商(aid)
+                  in: formData
+                  name: vendorId
+                  type: string
+                  x-go-name: VendorID
+                - description: 代理商标识符
+                  in: formData
+                  name: signature
+                  type: string
+                  x-go-name: Signature
+                - description: 会员(user)
+                  in: formData
+                  name: user
+                  type: string
+                  x-go-name: User
+                - description: 时间戳
+                  format: int64
+                  in: formData
+                  name: timestamp
+                  type: integer
+                  x-go-name: Timestamp
+                - description: 0:中文, 1:英文 (非必要)
+                  format: int64
+                  in: formData
+                  name: syslang
+                  type: integer
+                  x-go-name: Syslang
+            responses:
+                "200":
+                    $ref: '#/responses/GetBalanceResp'
+                "500":
+                    $ref: '#/responses/CommonError'
+            tags:
+                - api渠道接口
     /v1/get_file:
         post:
             consumes:
