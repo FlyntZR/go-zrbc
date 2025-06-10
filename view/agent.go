@@ -43,9 +43,9 @@ type Agent struct {
 	// 备注
 	Remark string `json:"remark"`
 	// 信用额度
-	Credit string `json:"credit"`
+	Credit decimal.Decimal `json:"credit"`
 	// 现金
-	Cash string `json:"cash"`
+	Cash decimal.Decimal `json:"cash"`
 	// 类型
 	Type int `json:"type"`
 	// 币别

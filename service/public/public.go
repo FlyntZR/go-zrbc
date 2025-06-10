@@ -1796,8 +1796,8 @@ func (srv *publicApiService) ChangeBalance(ctx context.Context, req *view.Change
 	}
 
 	// Parse money value
-	moneyDec, err := decimal.NewFromString(req.Money)
-	if err != nil || moneyDec.IsZero() {
+	money, err := decimal.NewFromString(req.Money)
+	if err != nil || money.IsZero() {
 		return nil, utils.ErrWalletAddOrSubPointEmptyOrMoneyParamNotSet
 	}
 
@@ -1871,7 +1871,7 @@ func (srv *publicApiService) ChangeBalance(ctx context.Context, req *view.Change
 	}
 
 	// Check 5 seconds duplicate transactions (same amount)
-	res, err := srv.CheckDoubleDeals(ctx, member.ID, moneyDec, req.Order)
+	res, err := srv.CheckDoubleDeals(ctx, member.ID, money, req.Order)
 	if err != nil {
 		xlog.Errorf("error to check double deals, err:%+v", err)
 		return nil, err
@@ -1885,40 +1885,21 @@ func (srv *publicApiService) ChangeBalance(ctx context.Context, req *view.Change
 		return nil, utils.ErrWalletTransferExist
 	}
 
-	// Start transaction to update balance
-	err = srv.Tx(func(tx *gorm.DB) error {
-		// Lock member record
-		err := srv.userDao.UpdatesMember(tx, member.ID, map[string]interface{}{
-			"mem020": "Y",
-		})
+	if money.IsPositive() {
+		err := srv.ProDealAddValue(ctx, money, avResp, member, req.Order)
 		if err != nil {
-			return err
+			xlog.Errorf("error to pro deal add value, err:%+v", err)
+			return nil, err
 		}
-
-		// Calculate new balance
-		newBalance := member.Cash.Add(moneyDec)
-		if newBalance.IsNegative() {
-			return utils.ErrWalletTransferBalanceNotEnough
-		}
-
-		// Update member balance
-		err = srv.userDao.UpdatesMember(tx, member.ID, map[string]interface{}{
-			"cash":   newBalance,
-			"mem020": "N",
-		})
+		xlog.Infof("pro deal add value result: %+v", res)
+	}
+	if money.IsNegative() {
+		err := srv.ProDealDecValue(ctx, money, avResp, member, req.Order)
 		if err != nil {
-			return err
+			xlog.Errorf("error to pro deal dec value, err:%+v", err)
+			return nil, err
 		}
-
-		return nil
-	})
-
-	if err != nil {
-		// Ensure member is unlocked in case of error
-		_ = srv.userDao.UpdatesMember(srv.DB(), member.ID, map[string]interface{}{
-			"mem020": "N",
-		})
-		return nil, err
+		xlog.Infof("pro deal dec value result: %+v", res)
 	}
 
 	// Get language-specific response
@@ -2014,4 +1995,138 @@ func (srv *publicApiService) CheckDoubleDeals(ctx context.Context, memberID int6
 	}
 
 	return 0, nil
+}
+
+func (srv *publicApiService) GetUpLv5(ctx context.Context, member *db.Member) int64 {
+	if member.Mem011 != 0 {
+		return member.Mem011
+	}
+	if member.Mem010 != 0 {
+		return member.Mem010
+	}
+	if member.Mem009 != 0 {
+		return member.Mem009
+	}
+	if member.Mem008 != 0 {
+		return member.Mem008
+	}
+	return member.Mem007
+}
+
+func (srv *publicApiService) ProDealAddValue(ctx context.Context, money decimal.Decimal, avResp *view.AgentVerifyResp, member *db.Member, orderNum string) error {
+	upid := srv.GetUpLv5(ctx, member)
+	lv5Before := avResp.Agent.Cash
+	if member.Type == 1 {
+		lv5Before = avResp.Agent.Credit
+	}
+	pointtype := 0
+	if member.Type == 1 {
+		pointtype = 1
+	}
+	if lv5Before.Sub(money).IsNegative() {
+		return utils.ErrWalletAgentOverLimit
+	}
+	var err error
+	err = srv.Tx(func(tx *gorm.DB) error {
+		logAgeCashChange := &db.LogAgeCashChange{
+			Lacc02:    member.Mem006,
+			Lacc03:    member.ID,
+			Lacc06:    money,
+			Lacc07:    time.Now(),
+			Lacc08:    "",
+			Lacc09:    member.Cash,
+			Lacc10:    upid,
+			Lacc11:    lv5Before,
+			Pointtype: pointtype,
+		}
+		_, err = srv.logAgeCashChangeDao.Create(tx, logAgeCashChange)
+		if err != nil {
+			xlog.Errorf("error to create log age cash change, err:%+v", err)
+			return err
+		}
+		if err = srv.userDao.UpdatesMember(tx, member.ID, map[string]interface{}{
+			"cash": gorm.Expr("cash + ?", money),
+		}); err != nil {
+			xlog.Errorf("error to update member cash, err:%+v", err)
+			return err
+		}
+		if member.Type != 1 {
+			if err = srv.agentDao.UpdatesAgent(tx, avResp.Agent.ID, map[string]interface{}{
+				"cash": gorm.Expr("cash - ?", money),
+			}); err != nil {
+				xlog.Errorf("error to update agent cash, err:%+v", err)
+				return err
+			}
+		}
+		_, err = srv.inOutMDao.DealInsRecord(tx, "121", 0, int64(avResp.Agent.ULV), avResp.Agent.ID, member.ID, money, orderNum, member.Cash)
+		if err != nil {
+			xlog.Errorf("error to deal ins record, err:%+v", err)
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return utils.ErrWalletTransferLineError
+	}
+
+	return nil
+}
+
+func (srv *publicApiService) ProDealDecValue(ctx context.Context, money decimal.Decimal, avResp *view.AgentVerifyResp, member *db.Member, orderNum string) error {
+	upid := srv.GetUpLv5(ctx, member)
+	lv5Before := avResp.Agent.Cash
+	if member.Type == 1 {
+		lv5Before = avResp.Agent.Credit
+	}
+	pointtype := 0
+	if member.Type == 1 {
+		pointtype = 1
+	}
+	if member.Cash.Add(money).IsNegative() {
+		return utils.ErrWalletTransferBalanceNotEnough
+	}
+	var err error
+	err = srv.Tx(func(tx *gorm.DB) error {
+		logAgeCashChange := &db.LogAgeCashChange{
+			Lacc02:    member.Mem006,
+			Lacc03:    member.ID,
+			Lacc06:    money,
+			Lacc07:    time.Now(),
+			Lacc08:    "",
+			Lacc09:    member.Cash,
+			Lacc10:    upid,
+			Lacc11:    lv5Before,
+			Pointtype: pointtype,
+		}
+		_, err = srv.logAgeCashChangeDao.Create(tx, logAgeCashChange)
+		if err != nil {
+			xlog.Errorf("error to create log age cash change, err:%+v", err)
+			return err
+		}
+		if err = srv.userDao.UpdatesMember(tx, member.ID, map[string]interface{}{
+			"cash": gorm.Expr("cash + ?", money),
+		}); err != nil {
+			xlog.Errorf("error to update member cash, err:%+v", err)
+			return err
+		}
+		if member.Type != 1 {
+			if err = srv.agentDao.UpdatesAgent(tx, avResp.Agent.ID, map[string]interface{}{
+				"cash": gorm.Expr("cash - ?", money),
+			}); err != nil {
+				xlog.Errorf("error to update agent cash, err:%+v", err)
+				return err
+			}
+		}
+		_, err = srv.inOutMDao.DealInsRecord(tx, "122", 0, int64(avResp.Agent.ULV), avResp.Agent.ID, member.ID, money, orderNum, member.Cash)
+		if err != nil {
+			xlog.Errorf("error to deal ins record, err:%+v", err)
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return utils.ErrWalletTransferLineError
+	}
+
+	return nil
 }

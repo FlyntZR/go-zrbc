@@ -358,6 +358,13 @@ definitions:
                 x-go-name: PlaySeconds
         type: object
         x-go-package: go-zrbc/view
+    ChangeBalanceResp:
+        properties:
+            result:
+                type: string
+                x-go-name: Result
+        type: object
+        x-go-package: go-zrbc/view
     ChangePasswordResp:
         properties:
             result:
@@ -398,6 +405,13 @@ definitions:
         properties:
             result:
                 description: 代理商余额
+                type: string
+                x-go-name: Result
+        type: object
+        x-go-package: go-zrbc/view
+    GetBalanceResp:
+        properties:
+            result:
                 type: string
                 x-go-name: Result
         type: object
@@ -717,6 +731,59 @@ info:
     title: go-zrbc-api
     version: 1.0.0
 paths:
+    /v1/change_balance:
+        post:
+            consumes:
+                - multipart/form-data
+            description: 修改会员余额
+            operationId: ChangeBalance
+            parameters:
+                - description: 代理商(aid)
+                  in: formData
+                  name: vendorId
+                  type: string
+                  x-go-name: VendorID
+                - description: 代理商标识符
+                  in: formData
+                  name: signature
+                  type: string
+                  x-go-name: Signature
+                - description: 会员(user)
+                  in: formData
+                  name: user
+                  type: string
+                  x-go-name: User
+                - description: 加扣点金额(money)
+                  in: formData
+                  name: money
+                  type: string
+                  x-go-name: Money
+                - description: 贵公司产生的订单序号(非必要)最大值:32字符
+                  in: formData
+                  name: order
+                  type: string
+                  x-go-name: Order
+                - description: 时间戳
+                  format: int64
+                  in: formData
+                  name: timestamp
+                  type: integer
+                  x-go-name: Timestamp
+                - description: 0:中文, 1:英文 (非必要)
+                  format: int64
+                  in: formData
+                  name: syslang
+                  type: integer
+                  x-go-name: Syslang
+            responses:
+                "200":
+                    description: ChangeBalanceResp
+                    schema:
+                        $ref: '#/definitions/ChangeBalanceResp'
+                "500":
+                    $ref: '#/responses/CommonError'
+            tags:
+                - api渠道接口
     /v1/change_password:
         post:
             consumes:
@@ -933,7 +1000,9 @@ paths:
                   x-go-name: Syslang
             responses:
                 "200":
-                    $ref: '#/responses/GetBalanceResp'
+                    description: GetBalanceResp
+                    schema:
+                        $ref: '#/definitions/GetBalanceResp'
                 "500":
                     $ref: '#/responses/CommonError'
             tags:

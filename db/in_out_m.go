@@ -16,6 +16,7 @@ type InOutMDao interface {
 	Updates(tx *gorm.DB, id int64, data map[string]interface{}) error
 	CountTransactionsInLastMinute(tx *gorm.DB, memberID int64) (int64, error)
 	GetLastTransaction(tx *gorm.DB, memberID int64, orderNum string) (*InOutM, error)
+	DealInsRecord(tx *gorm.DB, code string, site, alv, aid, mid int64, ioamt decimal.Decimal, memo string, cash decimal.Decimal) (int64, error)
 }
 
 type inOutMDao struct{}
@@ -129,4 +130,31 @@ type InOutM struct {
 // TableName InOutM's table name
 func (*InOutM) TableName() string {
 	return TableNameInOutM
+}
+
+// DealInsRecord creates a new transaction record with calculated subtotal
+func (dao *inOutMDao) DealInsRecord(tx *gorm.DB, code string, site, alv, aid, mid int64, ioamt decimal.Decimal, memo string, cash decimal.Decimal) (int64, error) {
+	// Calculate subtotal
+	subtotal := cash.Add(ioamt)
+
+	// Create new record
+	record := &InOutM{
+		Iom002: time.Now(), // time
+		Iom003: mid,        // member
+		Iom004: ioamt,      // money
+		Iom005: code,       // op_code
+		Iom006: alv,        // op_lv
+		Iom007: aid,        // op_aid
+		Iom008: memo,       // memo
+		Iom009: site,       // site
+		Iom010: subtotal,   // subtotal
+	}
+
+	// Insert the record
+	id, err := dao.Create(tx, record)
+	if err != nil {
+		return 0, err
+	}
+
+	return id, nil
 }

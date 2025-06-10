@@ -75,7 +75,7 @@ const TableNameLogAgeCashChange = "log_age_cash_change"
 // LogAgeCashChange mapped from table <log_age_cash_change>
 type LogAgeCashChange struct {
 	Lacc01    int64           `gorm:"column:lacc01;primaryKey;autoIncrement:true" json:"lacc01"`
-	Lacc02    int64           `gorm:"column:lacc02;not null;comment:LV" json:"lacc02"`               // LV
+	Lacc02    int             `gorm:"column:lacc02;not null;comment:LV" json:"lacc02"`               // LV
 	Lacc03    int64           `gorm:"column:lacc03;not null;comment:ID" json:"lacc03"`               // ID
 	OpUtp     string          `gorm:"column:op_utp;not null;comment:操作者類型" json:"op_utp"`            // 操作者類型
 	Lacc04    int64           `gorm:"column:lacc04;not null;comment:OPLV" json:"lacc04"`             // OPLV
