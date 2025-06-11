@@ -14,6 +14,7 @@ type Bet02Dao interface {
 	Update(tx *gorm.DB, bet02 *Bet02) error
 	Updates(tx *gorm.DB, bet01 int64, data map[string]interface{}) error
 	GetAgentWinloss(tx *gorm.DB, agentID int64) (decimal.Decimal, error)
+	GetBet02s(tx *gorm.DB, agentID int64, startTime, endTime int64) ([]int64, error)
 }
 
 type bet02Dao struct{}
@@ -59,6 +60,32 @@ func (dao *bet02Dao) GetAgentWinloss(tx *gorm.DB, agentID int64) (decimal.Decima
 		return decimal.Zero, err
 	}
 	return winloss, nil
+}
+
+// GetBet02s gets member IDs for an agent within a time range
+func (dao *bet02Dao) GetBet02s(tx *gorm.DB, agentID int64, startTime, endTime int64) ([]int64, error) {
+	var memberIDs []int64
+	conn := tx.Table(TableNameBet02)
+
+	if agentID != 0 {
+		conn = conn.Where("bet22 = ?", agentID)
+	}
+
+	if startTime != 0 && endTime != 0 {
+		conn = conn.Where("bet08 BETWEEN ? AND ?", startTime, endTime)
+	} else {
+		// Default to last hour if no time range specified
+		now := time.Now()
+		defaultStartTime := now.Add(-1 * time.Hour).Format("2006-01-02 15:04:05")
+		defaultEndTime := now.Format("2006-01-02 15:04:05")
+		conn = conn.Where("bet08 BETWEEN ? AND ?", defaultStartTime, defaultEndTime)
+	}
+
+	err := conn.Select("bet05").Group("bet05").Pluck("bet05", &memberIDs).Error
+	if err != nil {
+		return nil, err
+	}
+	return memberIDs, nil
 }
 
 const TableNameBet02 = "bet02"

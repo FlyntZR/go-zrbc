@@ -78,6 +78,7 @@ type PublicApiService interface {
 	GetAgentBalance(ctx context.Context, req *view.GetAgentBalanceReq) (*view.GetAgentBalanceResp, error)
 	GetBalance(ctx context.Context, req *view.GetBalanceReq) (*view.GetBalanceResp, error)
 	ChangeBalance(ctx context.Context, req *view.ChangeBalanceReq) (*view.ChangeBalanceResp, error)
+	GetMemberTradeReport(ctx context.Context, req *view.GetMemberTradeReportReq) (*view.GetMemberTradeReportResp, error)
 }
 
 type MemDtlDao interface {
@@ -2129,4 +2130,166 @@ func (srv *publicApiService) ProDealDecValue(ctx context.Context, money decimal.
 	}
 
 	return nil
+}
+
+func (srv *publicApiService) GetMemberTradeReport(ctx context.Context, req *view.GetMemberTradeReportReq) (*view.GetMemberTradeReportResp, error) {
+	// Validate timestamp
+	if err := utils.CheckTimestamp(req.Timestamp); err != nil {
+		xlog.Errorf("error to check timestamp, err:%+v", err)
+		return nil, err
+	}
+
+	// Verify agent
+	avgResp, err := srv.AgentVerify(ctx, &view.AgentVerifyReq{VendorID: req.VendorID, Signature: req.Signature})
+	if err != nil {
+		xlog.Errorf("error to verify agent, err:%+v", err)
+		return nil, err
+	}
+
+	if req.User != "" {
+		// Get member by account
+		member, err := srv.userDao.QueryByAccount(srv.DB(), req.User)
+		if err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return nil, utils.ErrParamInvalidAccountNotExist
+			}
+			return nil, err
+		}
+		mIDs := []int64{member.ID}
+		var result []*db.InOutM
+		err = srv.Tx(func(tx *gorm.DB) error {
+			result, err = srv.inOutMDao.GetInOutMs(tx, mIDs, req.OrderID, req.Order, req.StartTime, req.EndTime)
+			if err != nil {
+				return err
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+		var tradeItems []*view.TradeItem
+		for _, v := range result {
+			tradeItem := &view.TradeItem{
+				MID:      v.Iom003,
+				OrderID:  v.Iom001,
+				OrderNum: v.Iom008,
+				AddTime:  v.Iom002.Unix(),
+				Money:    v.Iom004,
+				OpCode:   v.Iom005,
+				Subtotal: v.Iom010,
+			}
+			tradeItems = append(tradeItems, tradeItem)
+		}
+
+		return &view.GetMemberTradeReportResp{
+			Result: tradeItems,
+		}, nil
+	} else {
+		if req.StartTime != 0 && req.EndTime != 0 {
+			if req.EndTime-req.StartTime > 86400 {
+				return nil, utils.ErrFunctionOnlyQueryOneDayReport
+			}
+		}
+
+		var mIDs []int64
+		result := []*db.InOutM{}
+		err = srv.Tx(func(tx *gorm.DB) error {
+			mIDs, err = srv.bet02Dao.GetBet02s(tx, avgResp.Agent.ID, req.StartTime, req.EndTime)
+			if err != nil {
+				return err
+			}
+			result, err = srv.inOutMDao.GetInOutMs(tx, mIDs, req.OrderID, req.Order, req.StartTime, req.EndTime)
+			if err != nil {
+				return err
+			}
+			return nil
+		})
+
+		// Get member trade report key
+		GetMemberTradeReport := "GetMemberTradeReport"
+		vid := req.VendorID
+
+		// Get last check time from Redis
+		chkt, err := srv.redisCli.HGet(ctx, GetMemberTradeReport, vid).Result()
+		if err != nil && err != redis.Nil {
+			xlog.Warnf("error to get last check time from Redis: %v", err)
+		}
+
+		// Get current time
+		chkTime := time.Now().Unix()
+		// Check if it's igktwapi or no result
+		if req.VendorID == "igktwapi" || len(result) == 0 {
+			if chkt == "" {
+				// First time access, set the time
+				err = srv.redisCli.HSet(ctx, GetMemberTradeReport, vid, chkTime).Err()
+				if err != nil {
+					xlog.Errorf("error setting check time in Redis: %v", err)
+					return nil, utils.ErrRedisError
+				}
+			} else {
+				// Check time difference
+				lastChkTime, err := strconv.ParseInt(chkt, 10, 64)
+				if err != nil {
+					xlog.Errorf("error parsing last check time: %v", err)
+					return nil, utils.ErrRedisError
+				}
+
+				ct := chkTime - lastChkTime
+				if ct < 10 {
+					return nil, utils.ErrInvalidTransactionTimeoutRepeat
+				}
+
+				// Update check time
+				err = srv.redisCli.HSet(ctx, GetMemberTradeReport, vid, chkTime).Err()
+				if err != nil {
+					xlog.Errorf("error updating check time in Redis: %v", err)
+					return nil, utils.ErrRedisError
+				}
+			}
+		} else {
+			if chkt == "" {
+				// First time access, set the time
+				err = srv.redisCli.HSet(ctx, GetMemberTradeReport, vid, chkTime).Err()
+				if err != nil {
+					xlog.Errorf("error setting check time in Redis: %v", err)
+					return nil, utils.ErrRedisError
+				}
+			} else {
+				// Check time difference
+				lastChkTime, err := strconv.ParseInt(chkt, 10, 64)
+				if err != nil {
+					xlog.Errorf("error parsing last check time: %v", err)
+					return nil, utils.ErrRedisError
+				}
+
+				ct := chkTime - lastChkTime
+				if ct < 30 {
+					return nil, utils.ErrInvalidTransactionTimeout
+				}
+
+				// Update check time
+				err = srv.redisCli.HSet(ctx, GetMemberTradeReport, vid, chkTime).Err()
+				if err != nil {
+					xlog.Errorf("error updating check time in Redis: %v", err)
+					return nil, utils.ErrRedisError
+				}
+			}
+		}
+		var tradeItems []*view.TradeItem
+		for _, v := range result {
+			tradeItem := &view.TradeItem{
+				MID:      v.Iom003,
+				OrderID:  v.Iom001,
+				OrderNum: v.Iom008,
+				AddTime:  v.Iom002.Unix(),
+				Money:    v.Iom004,
+				OpCode:   v.Iom005,
+				Subtotal: v.Iom010,
+			}
+			tradeItems = append(tradeItems, tradeItem)
+		}
+		return &view.GetMemberTradeReportResp{
+			Result: tradeItems,
+		}, nil
+	}
 }

@@ -2,9 +2,11 @@ package http
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"go-zrbc/pkg/http/middleware"
 	commonresp "go-zrbc/pkg/http/response"
+	"go-zrbc/pkg/utils"
 	"go-zrbc/pkg/xlog"
 	service "go-zrbc/service/public"
 	"go-zrbc/view"
@@ -36,6 +38,7 @@ func (h *PublicApiHandler) SetRouter(r *gin.Engine) {
 	r.POST("/v1/get_agent_balance", h.GetAgentBalance)
 	r.POST("/v1/get_balance", h.GetBalance)
 	r.POST("/v1/change_balance", h.ChangeBalance)
+	r.POST("/v1/get_member_trade_report", h.GetMemberTradeReport)
 }
 
 func (h *PublicApiHandler) handlePublicApi(c *gin.Context) {
@@ -92,6 +95,8 @@ func (h *PublicApiHandler) handlePublicApi(c *gin.Context) {
 		h.SigninGame(c)
 	case "ChangeBalance":
 		h.ChangeBalance(c)
+	case "GetMemberTradeReport":
+		h.GetMemberTradeReport(c)
 	// Add other command handlers as needed
 	default:
 		if !passCommands[cmd] {
@@ -480,6 +485,72 @@ func (h *PublicApiHandler) ChangeBalance(c *gin.Context) {
 
 	xlog.Debugf("ChangeBalance req: %+v", &req)
 	resp, err := h.srv.ChangeBalance(c, &req)
+	if err != nil {
+		commonresp.ErrResp(c, err)
+		return
+	}
+	commonresp.JsonResp(c, resp)
+}
+
+// swagger:route POST /v1/get_member_trade_report api渠道接口 GetMemberTradeReport
+// 获取会员交易报告
+// consumes:
+//   - multipart/form-data
+//
+// responses:
+//
+//	200: GetMemberTradeReportResp
+//	500: CommonError
+func (h *PublicApiHandler) GetMemberTradeReport(c *gin.Context) {
+	var req view.GetMemberTradeReportReq
+	req.VendorID = c.PostForm("vendorId")
+	req.Signature = c.PostForm("signature")
+	req.User = c.PostForm("user")
+	req.OrderID = c.PostForm("orderid")
+	req.Order = c.PostForm("order")
+	startTimeStr := c.PostForm("startTime")
+	if startTimeStr != "" {
+		startTime, err := utils.Strtotime(startTimeStr)
+		if err != nil {
+			err := errors.New("startTime format error")
+			xlog.Errorf("startTime format error, err:%+v", err)
+			commonresp.ErrResp(c, err)
+			return
+		}
+		req.StartTime = startTime
+	} else {
+		req.StartTime = 0
+	}
+	endTimeStr := c.PostForm("endTime")
+	if endTimeStr != "" {
+		endTime, err := utils.Strtotime(endTimeStr)
+		if err != nil {
+			err := errors.New("endTime format error")
+			xlog.Errorf("endTime format error, err:%+v", err)
+			commonresp.ErrResp(c, err)
+			return
+		}
+		req.EndTime = endTime
+	} else {
+		req.EndTime = 0
+	}
+	timestamp, err := strconv.ParseInt(c.PostForm("timestamp"), 10, 64)
+	if err != nil {
+		xlog.Warnf("timestamp is not a number, use default value 0")
+		// 方便测试自动时间戳
+		timestamp = time.Now().Unix()
+	}
+	req.Timestamp = timestamp
+
+	syslang, err := strconv.Atoi(c.PostForm("syslang"))
+	if err != nil {
+		xlog.Warnf("syslang is not a number, use default value 0")
+		syslang = 0
+	}
+	req.Syslang = syslang
+
+	xlog.Debugf("GetMemberTradeReport req: %+v", &req)
+	resp, err := h.srv.GetMemberTradeReport(c, &req)
 	if err != nil {
 		commonresp.ErrResp(c, err)
 		return

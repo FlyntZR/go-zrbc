@@ -19,3 +19,9 @@ func RemoveSpecail(orgStr string) string {
 	re := regexp.MustCompile("[,，：:（）()?？*|{}.\\/$、·`'\"]")
 	return re.ReplaceAllString(orgStr, "")
 }
+
+func IsNumeric(str string) bool {
+	// 匹配整数或浮点数
+	matched, _ := regexp.MatchString(`^-?\d*\.?\d+$`, str)
+	return matched
+}

@@ -17,6 +17,7 @@ type InOutMDao interface {
 	CountTransactionsInLastMinute(tx *gorm.DB, memberID int64) (int64, error)
 	GetLastTransaction(tx *gorm.DB, memberID int64, orderNum string) (*InOutM, error)
 	DealInsRecord(tx *gorm.DB, code string, site, alv, aid, mid int64, ioamt decimal.Decimal, memo string, cash decimal.Decimal) (int64, error)
+	GetInOutMs(tx *gorm.DB, mids []int64, orderID, order string, startTime, endTime int64) ([]*InOutM, error)
 }
 
 type inOutMDao struct{}
@@ -109,6 +110,37 @@ func (dao *inOutMDao) CountTransactionsInLastMinute(tx *gorm.DB, memberID int64)
 	}
 
 	return count, nil
+}
+
+func (dao *inOutMDao) GetInOutMs(tx *gorm.DB, mIDs []int64, orderID, order string, startTime, endTime int64) ([]*InOutM, error) {
+	var ret []*InOutM
+	conn := tx.Table("in_out_m").Where("iom005 in ('121','122','501','502','504')")
+	if len(mIDs) > 0 {
+		conn = conn.Where("iom003 in (?)", mIDs)
+	}
+	if orderID != "" {
+		conn = conn.Where("iom001=?", orderID)
+	}
+	if order != "" {
+		conn = conn.Where("iom008=?", order)
+	}
+	if orderID == "" || order == "" {
+		if startTime == 0 || endTime == 0 {
+			now := time.Now()
+			defaultStartTime := now.Add(-1 * time.Hour).Format("2006-01-02 15:04:05")
+			defaultEndTime := now.Format("2006-01-02 15:04:05")
+			conn = conn.Where("iom002 BETWEEN ? AND ?", defaultStartTime, defaultEndTime)
+		} else {
+			startTimeStr := time.Unix(startTime, 0).Format("2006-01-02 15:04:05")
+			endTimeStr := time.Unix(endTime, 0).Format("2006-01-02 15:04:05")
+			conn = conn.Where("iom002 BETWEEN ? AND ?", startTimeStr, endTimeStr)
+		}
+	}
+	err := conn.Find(&ret).Error
+	if err != nil {
+		return nil, err
+	}
+	return ret, nil
 }
 
 const TableNameInOutM = "in_out_m"

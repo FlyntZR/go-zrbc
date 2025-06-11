@@ -156,3 +156,53 @@ type ChangeBalanceReq struct {
 type ChangeBalanceResp struct {
 	Result string `json:"result"`
 }
+
+// swagger:parameters GetMemberTradeReport
+type GetMemberTradeReportReq struct {
+	// 代理商(aid)
+	// in:formData
+	VendorID string `json:"vendorId" form:"vendorId"`
+	// 代理商标识符
+	// in:formData
+	Signature string `json:"signature" form:"signature"`
+	// 会员(user)
+	// in:formData
+	User string `json:"user" form:"user"`
+	// 订单ID
+	// in:formData
+	OrderID string `json:"orderid" form:"orderid"`
+	// 订单号
+	// in:formData
+	Order string `json:"order" form:"order"`
+	// 开始时间戳
+	// in:formData
+	StartTimeStr string `json:"startTime" form:"startTime"`
+	// swagger:ignore
+	StartTime int64
+	// 结束时间戳
+	// in:formData
+	EndTimeStr string `json:"endTime" form:"endTime"`
+	// swagger:ignore
+	EndTime int64
+	// 时间戳
+	// in:formData
+	Timestamp int64 `json:"timestamp" form:"timestamp"`
+	// 0:中文, 1:英文 (非必要)
+	// in:formData
+	Syslang int `json:"syslang" form:"syslang"`
+}
+
+type TradeItem struct {
+	MID      int64           `json:"mid"`
+	OrderID  int64           `json:"orderid"`
+	OrderNum string          `json:"ordernum"`
+	AddTime  int64           `json:"addtime"`
+	Money    decimal.Decimal `json:"money"`
+	OpCode   string          `json:"op_code"`
+	Subtotal decimal.Decimal `json:"subtotal"`
+}
+
+// swagger:model
+type GetMemberTradeReportResp struct {
+	Result []*TradeItem `json:"result"` // Result data
+}

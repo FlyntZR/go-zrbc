@@ -439,6 +439,15 @@ definitions:
                 x-go-name: FileUrl
         type: object
         x-go-package: go-zrbc/view
+    GetMemberTradeReportResp:
+        properties:
+            result:
+                items:
+                    $ref: '#/definitions/TradeItem'
+                type: array
+                x-go-name: Result
+        type: object
+        x-go-package: go-zrbc/view
     GetTimeTsResp:
         properties:
             s_tm:
@@ -706,6 +715,34 @@ definitions:
                 x-go-name: UserName
         type: object
         x-go-package: go-zrbc/pkg/token
+    TradeItem:
+        properties:
+            addtime:
+                format: int64
+                type: integer
+                x-go-name: AddTime
+            mid:
+                format: int64
+                type: integer
+                x-go-name: MID
+            money:
+                type: string
+                x-go-name: Money
+            op_code:
+                type: string
+                x-go-name: OpCode
+            orderid:
+                format: int64
+                type: integer
+                x-go-name: OrderID
+            ordernum:
+                type: string
+                x-go-name: OrderNum
+            subtotal:
+                type: string
+                x-go-name: Subtotal
+        type: object
+        x-go-package: go-zrbc/view
     UploadFileResp:
         properties:
             file_key:
@@ -1037,6 +1074,69 @@ paths:
                     $ref: '#/responses/CommonError'
             tags:
                 - S3接口
+    /v1/get_member_trade_report:
+        post:
+            consumes:
+                - multipart/form-data
+            description: 获取会员交易报告
+            operationId: GetMemberTradeReport
+            parameters:
+                - description: 代理商(aid)
+                  in: formData
+                  name: vendorId
+                  type: string
+                  x-go-name: VendorID
+                - description: 代理商标识符
+                  in: formData
+                  name: signature
+                  type: string
+                  x-go-name: Signature
+                - description: 会员(user)
+                  in: formData
+                  name: user
+                  type: string
+                  x-go-name: User
+                - description: 订单ID
+                  in: formData
+                  name: orderid
+                  type: string
+                  x-go-name: OrderID
+                - description: 订单号
+                  in: formData
+                  name: order
+                  type: string
+                  x-go-name: Order
+                - description: 开始时间戳
+                  in: formData
+                  name: startTime
+                  type: string
+                  x-go-name: StartTimeStr
+                - description: 结束时间戳
+                  in: formData
+                  name: endTime
+                  type: string
+                  x-go-name: EndTimeStr
+                - description: 时间戳
+                  format: int64
+                  in: formData
+                  name: timestamp
+                  type: integer
+                  x-go-name: Timestamp
+                - description: 0:中文, 1:英文 (非必要)
+                  format: int64
+                  in: formData
+                  name: syslang
+                  type: integer
+                  x-go-name: Syslang
+            responses:
+                "200":
+                    description: GetMemberTradeReportResp
+                    schema:
+                        $ref: '#/definitions/GetMemberTradeReportResp'
+                "500":
+                    $ref: '#/responses/CommonError'
+            tags:
+                - api渠道接口
     /v1/get_sign_file:
         post:
             consumes:
