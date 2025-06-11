@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"go-zrbc/view"
 	"log"
+	"math/rand"
 	"os"
 	"os/signal"
 	"testing"
@@ -229,11 +230,12 @@ func exec_ws_betting_15101(chbetInfo <-chan view.WsBettingCh) {
 		if err != nil {
 			log.Fatal(err)
 		}
-		log.Printf("15101 bet success: %s", wsReq)
+		log.Printf("15101 投注成功: %s", wsReq)
 	}
 }
 
-func connect_ws_betting_15101(ch chan string) {
+func connect_ws_betting_15101(ch chan string, userName string) {
+	rand.Seed(time.Now().UnixNano())
 	sid := <-ch
 
 	interrupt := make(chan os.Signal, 1)
@@ -244,7 +246,7 @@ func connect_ws_betting_15101(ch chan string) {
 	}()
 	go exec_ws_betting_15101(betCh)
 
-	c, _, err := websocket.DefaultDialer.Dial("wss://59f7-37-157-223-27.ngrok-free.app/15101", nil)
+	c, _, err := websocket.DefaultDialer.Dial("wss://ffe8-37-157-223-27.ngrok-free.app/15101", nil)
 	if err != nil {
 		log.Fatal("dial 15101:", err)
 	}
@@ -284,9 +286,9 @@ func connect_ws_betting_15101(ch chan string) {
 		ticker.Stop()
 	}()
 
-	recvBetFlag := true
+	recvBetResultFlag := false
 	firstTwentyOneFlag := true
-	joinTableFlag := false
+	modifyBetLimitFlag := false
 	betSerialNumber := 1
 	for {
 		select {
@@ -321,15 +323,24 @@ func connect_ws_betting_15101(ch chan string) {
 						continue
 					} else {
 						log.Printf("15101 投注成功回复: %s", message)
-						recvBetFlag = true
 					}
 				} else if wsData.Protocol == 25 {
 					log.Printf("15101 得到一局结果: %s", message)
+					if modifyBetLimitFlag {
+						recvBetResultFlag = true
+					}
 				} else if wsData.Protocol == 31 {
 					log.Printf("15101 派彩成功: %s", message)
+				} else if wsData.Protocol == 60 {
+					log.Printf("15101 修改限红成功: %s", message)
+					modifyBetLimitFlag = true
 				} else if wsData.Protocol == 10 {
 					log.Printf("15101 进入桌台成功: %s", message)
-					joinTableFlag = true
+					err = c.WriteMessage(websocket.TextMessage, []byte(`{"protocol":60,"data":{"dtBetLimitSelectID":{"101":2,"102":125,"103":9,"104":126,"105":127,"106":128,"107":129,"108":149,"110":131,"111":150,"112":250,"113":251,"117":260,"121":261,"125":600,"126":599,"128":584,"129":602,"301":29}}}`))
+					if err != nil {
+						log.Fatal(err)
+					}
+					log.Printf("15101 修改限红")
 				} else if wsData.Protocol == 38 {
 					var wsBetTimeResp view.WsBetTimeResp
 					err = json.Unmarshal(message, &wsBetTimeResp)
@@ -351,25 +362,46 @@ func connect_ws_betting_15101(ch chan string) {
 						continue
 					}
 					log.Printf("15101 得到下注时间剩余秒数: %v", wsBetTimeResp)
-					if recvBetFlag && joinTableFlag {
-						var wsBettingData = view.WsBettingData{
-							BetSerialNumber: betSerialNumber,
-							GameNo:          wsBetTimeResp.Data.GameNo,
-							GameNoRound:     wsBetTimeResp.Data.GameNoRound,
-							BetArr: []view.WsBettingInfoItem{
-								{
-									BetArea:     1,
-									AddBetMoney: 100,
+					if recvBetResultFlag && modifyBetLimitFlag {
+						if userName == "laugh_g_2" {
+							var wsBettingData = view.WsBettingData{
+								BetSerialNumber: betSerialNumber,
+								GameNo:          wsBetTimeResp.Data.GameNo,
+								GameNoRound:     wsBetTimeResp.Data.GameNoRound,
+								BetArr: []view.WsBettingInfoItem{
+									{
+										BetArea:     2,
+										AddBetMoney: []int{100, 200, 300}[rand.Intn(3)],
+									},
 								},
-							},
-							Commission: 0,
+								Commission: 0,
+							}
+							betCh <- view.WsBettingCh{
+								Conn:  c,
+								BetCh: wsBettingData,
+							}
+							recvBetResultFlag = false
+							betSerialNumber++
+						} else if userName == "laugh" {
+							var wsBettingData = view.WsBettingData{
+								BetSerialNumber: betSerialNumber,
+								GameNo:          wsBetTimeResp.Data.GameNo,
+								GameNoRound:     wsBetTimeResp.Data.GameNoRound,
+								BetArr: []view.WsBettingInfoItem{
+									{
+										BetArea:     1,
+										AddBetMoney: []int{100, 200, 300}[rand.Intn(3)],
+									},
+								},
+								Commission: 0,
+							}
+							betCh <- view.WsBettingCh{
+								Conn:  c,
+								BetCh: wsBettingData,
+							}
+							recvBetResultFlag = false
+							betSerialNumber++
 						}
-						betCh <- view.WsBettingCh{
-							Conn:  c,
-							BetCh: wsBettingData,
-						}
-						recvBetFlag = false
-						betSerialNumber++
 					}
 				} else {
 					log.Printf("15101 recv: %s", "other msg")
@@ -383,7 +415,7 @@ func TestYMZR_ws_betting_all(t *testing.T) {
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
 
-	c, _, err := websocket.DefaultDialer.Dial("wss://59f7-37-157-223-27.ngrok-free.app/15109", nil)
+	c, _, err := websocket.DefaultDialer.Dial("wss://ffe8-37-157-223-27.ngrok-free.app/15109", nil)
 	if err != nil {
 		log.Fatal("dial:", err)
 	}
@@ -397,7 +429,78 @@ func TestYMZR_ws_betting_all(t *testing.T) {
 
 	// 创建一个字符串类型的通道
 	ch := make(chan string)
-	go connect_ws_betting_15101(ch)
+	go connect_ws_betting_15101(ch, "laugh")
+
+	ticker := time.NewTicker(5 * time.Second) // send a unsolicited pong frame every 15 seconds
+	begin_time := time.Now()
+	for {
+		select {
+		case <-interrupt:
+			log.Println("interrupt")
+			ticker.Stop()
+			return
+		case <-ticker.C:
+			log.Printf("%v sending a unsolicited ping frame, has been running for %v seconds", time.Now().Format(time.RFC3339), time.Since(begin_time).Seconds())
+			err = c.WriteMessage(websocket.PingMessage, nil)
+			if err != nil {
+				log.Fatal(err)
+			}
+		default:
+			_, message, err := c.ReadMessage()
+			if err != nil {
+				log.Fatal("Error reading due to ", err)
+			} else {
+				// txt := string(message)
+				// log.Printf("recv: %s", txt)
+				// bb, err := json.Marshal(message)
+				// if err != nil {
+				// 	log.Fatal("Error Marshal to ", err)
+				// }
+				var wsData view.WsResp
+				err = json.Unmarshal(message, &wsData)
+				if err != nil {
+					log.Fatal("Error Unmarshal to ", err)
+				}
+				// log.Printf("recv: %v", wsData)
+				if wsData.Protocol == 0 {
+					cc, err := json.Marshal(wsData.Data)
+					if err != nil {
+						log.Fatal("Error Marshal to ", err)
+					}
+					var authResp AuthResp
+					err = json.Unmarshal(cc, &authResp)
+					if err != nil {
+						log.Fatal("Error Unmarshal to ", err)
+					}
+					log.Printf("15109登录成功, sid: %s", authResp.Sid)
+					ch <- authResp.Sid
+					ticker.Stop()
+					break
+				}
+			}
+		}
+	}
+}
+
+func TestYMZR_ws_betting_other(t *testing.T) {
+	interrupt := make(chan os.Signal, 1)
+	signal.Notify(interrupt, os.Interrupt)
+
+	c, _, err := websocket.DefaultDialer.Dial("wss://ffe8-37-157-223-27.ngrok-free.app/15109", nil)
+	if err != nil {
+		log.Fatal("dial:", err)
+	}
+	defer c.Close()
+	log.Printf("connect 15109 success!")
+
+	err = c.WriteMessage(websocket.TextMessage, []byte(`{"protocol":0,"data":{"account":"laugh_g_2","password":"123456","dtBetLimitSelectID":{},"bGroupList":false,"videoName":"TC","videoDelay":3000,"userAgent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"}}`))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// 创建一个字符串类型的通道
+	ch := make(chan string)
+	go connect_ws_betting_15101(ch, "laugh_g_2")
 
 	ticker := time.NewTicker(5 * time.Second) // send a unsolicited pong frame every 15 seconds
 	begin_time := time.Now()
