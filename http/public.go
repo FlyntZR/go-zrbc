@@ -3,7 +3,6 @@ package http
 import (
 	"context"
 	"errors"
-	"fmt"
 	"go-zrbc/pkg/http/middleware"
 	commonresp "go-zrbc/pkg/http/response"
 	"go-zrbc/pkg/utils"
@@ -49,14 +48,7 @@ func (h *PublicApiHandler) handlePublicApi(c *gin.Context) {
 		cmd = c.Query("cmd")
 	}
 
-	// Handle GetMemberReport command
-	if cmd == "GetMemberReport" {
-		commonresp.JsonResp(c, map[string]interface{}{
-			"errorCode": 100,
-		})
-		return
-	}
-
+	xlog.Debugf("EnableOrDisableMem cmd: %s", cmd)
 	// Check if command is in allowed list
 	passCommands := map[string]bool{
 		"GetAgentBalance":        true,
@@ -76,7 +68,6 @@ func (h *PublicApiHandler) handlePublicApi(c *gin.Context) {
 		"ChangePassword":         true,
 		"SigninGame":             true,
 		"ChangeBalance":          true,
-		"EnableOrDisableMem":     true,
 	}
 
 	// Handle command
@@ -99,13 +90,17 @@ func (h *PublicApiHandler) handlePublicApi(c *gin.Context) {
 		h.ChangeBalance(c)
 	case "GetMemberTradeReport":
 		h.GetMemberTradeReport(c)
-	case "EnableOrDisableMem":
+	case "EnableorDisablemem":
+		xlog.Debugf("EnableOrDisableMem req: %+v", c.Request.PostForm)
 		h.EnableOrDisableMem(c)
 	// Add other command handlers as needed
 	default:
 		if !passCommands[cmd] {
 			xlog.Errorf("Invalid command: %s", cmd)
-			commonresp.ErrResp(c, fmt.Errorf("invalid command"))
+			commonresp.ErrResp(c, errors.New("invalid command"))
+			return
+		} else {
+			commonresp.ErrResp(c, errors.New("this command is not supported"))
 			return
 		}
 	}
