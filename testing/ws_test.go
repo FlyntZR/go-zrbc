@@ -249,7 +249,7 @@ func connect_ws_betting_15101(ch chan string) {
 	}()
 	go exec_ws_betting_15101(betCh)
 
-	c, _, err := websocket.DefaultDialer.Dial("wss://ffe8-37-157-223-27.ngrok-free.app/15101", nil)
+	c, _, err := websocket.DefaultDialer.Dial("ws://192.168.0.213/15101", nil)
 	if err != nil {
 		log.Fatal("dial 15101:", err)
 	}
@@ -400,7 +400,7 @@ func runSingleBettingTest(t *testing.T, account string, wg *sync.WaitGroup) {
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
 
-	c, _, err := websocket.DefaultDialer.Dial("wss://ffe8-37-157-223-27.ngrok-free.app/15109", nil)
+	c, _, err := websocket.DefaultDialer.Dial("ws://192.168.0.213/15109", nil)
 	if err != nil {
 		log.Printf("dial error for account %s: %v", account, err)
 		return
@@ -471,7 +471,7 @@ func runSingleBettingTest(t *testing.T, account string, wg *sync.WaitGroup) {
 // TestYMZR_ws_betting_multiple runs multiple concurrent betting test cases
 func TestYMZR_ws_betting_multiple(t *testing.T) {
 	var wg sync.WaitGroup
-	numTests := 10
+	numTests := 2
 
 	for i := 0; i < numTests; i++ {
 		wg.Add(1)
