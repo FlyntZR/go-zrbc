@@ -79,6 +79,7 @@ type PublicApiService interface {
 	GetBalance(ctx context.Context, req *view.GetBalanceReq) (*view.GetBalanceResp, error)
 	ChangeBalance(ctx context.Context, req *view.ChangeBalanceReq) (*view.ChangeBalanceResp, error)
 	GetMemberTradeReport(ctx context.Context, req *view.GetMemberTradeReportReq) (*view.GetMemberTradeReportResp, error)
+	EnableOrDisableMem(ctx context.Context, req *view.EnableOrDisableMemReq) (*view.EnableOrDisableMemResp, error)
 }
 
 type MemDtlDao interface {
@@ -2292,4 +2293,110 @@ func (srv *publicApiService) GetMemberTradeReport(ctx context.Context, req *view
 			Result: tradeItems,
 		}, nil
 	}
+}
+
+func (srv *publicApiService) EnableOrDisableMem(ctx context.Context, req *view.EnableOrDisableMemReq) (*view.EnableOrDisableMemResp, error) {
+	// Validate timestamp
+	if err := utils.CheckTimestamp(req.Timestamp); err != nil {
+		xlog.Errorf("error to check timestamp, err:%+v", err)
+		return nil, err
+	}
+
+	// Verify agent
+	avResp, err := srv.AgentVerify(ctx, &view.AgentVerifyReq{VendorID: req.VendorID, Signature: req.Signature})
+	if err != nil {
+		xlog.Errorf("error to verify agent, err:%+v", err)
+		return nil, err
+	}
+
+	// Check agent status
+	if avResp.Agent.Age015 == "N" {
+		return nil, utils.ErrParamInvalidAgentDeactivated
+	}
+
+	// Validate status
+	if req.Status != "Y" && req.Status != "N" {
+		return nil, utils.ErrCommandSuccessButNoData
+	}
+
+	// Validate type and determine which field to update
+	var columnToUpdate string
+	var actionType string
+	switch req.Type {
+	case "login":
+		columnToUpdate = "mem016"
+		actionType = "登入"
+		if req.Status == "Y" && avResp.Agent.Age015 == "N" {
+			return nil, utils.ErrParamInvalidAgentDeactivated
+		}
+	case "bet":
+		columnToUpdate = "mem017"
+		actionType = "下注"
+		if req.Status == "Y" && avResp.Agent.Age016 == "N" {
+			return nil, utils.ErrParamInvalidAgentDeactivated
+		}
+	default:
+		return nil, utils.ErrCommandSuccessButNoData
+	}
+
+	// Split and clean user accounts
+	users := strings.Split(strings.ReplaceAll(req.User, " ", ""), ",")
+	if len(users) == 0 {
+		return nil, utils.ErrCommandSuccessButNoData
+	}
+
+	// Get status text based on language
+	var statusText string
+	if req.Status == "Y" {
+		if req.Syslang == 1 {
+			statusText = "enabled"
+		} else {
+			statusText = "已启用"
+		}
+	} else {
+		if req.Syslang == 1 {
+			statusText = "disabled"
+		} else {
+			statusText = "已停用"
+		}
+	}
+
+	members, err := srv.userDao.QueryByAccounts(srv.DB(), users, avResp.Agent.ID)
+	if err != nil {
+		return nil, err
+	}
+	if len(members) == 0 {
+		return nil, utils.ErrParamInvalidAccountNotExist
+	}
+	for _, member := range members {
+		// Update member status
+		err = srv.Tx(func(tx *gorm.DB) error {
+			updates := map[string]interface{}{
+				columnToUpdate: req.Status,
+			}
+			err := srv.userDao.UpdatesMember(tx, member.ID, updates)
+			if err != nil {
+				xlog.Errorf("Failed to update member status, err:%+v", err)
+				return err
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Generate response message based on language
+	var memberText, result string
+	if req.Syslang == 1 {
+		memberText = "Member"
+		result = fmt.Sprintf("%s:%s %s %s", memberText, strings.Join(users, ","), statusText, actionType)
+	} else {
+		memberText = "会员"
+		result = fmt.Sprintf("%s:%s %s %s", memberText, strings.Join(users, ","), statusText, actionType)
+	}
+
+	return &view.EnableOrDisableMemResp{
+		Result: result,
+	}, nil
 }

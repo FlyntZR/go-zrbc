@@ -24,6 +24,7 @@ type UserDao interface {
 	GetMemberCountByAgentID(tx *gorm.DB, agentID int64) (currentCount int, err error)
 	QueryByAgentID(tx *gorm.DB, agentID int64) ([]*Member, error)
 	GetMemberAccountInfo(tx *gorm.DB, memberID int64) (*MemberAccountInfo, error)
+	QueryByAccounts(tx *gorm.DB, accounts []string, agentID int64) ([]*Member, error)
 }
 
 type userDao struct{}
@@ -105,6 +106,15 @@ func (dao *userDao) GetMemberAccountInfo(tx *gorm.DB, memberID int64) (*MemberAc
 		return nil, err
 	}
 	return &member, nil
+}
+
+func (dao *userDao) QueryByAccounts(tx *gorm.DB, accounts []string, agentID int64) ([]*Member, error) {
+	var members []*Member
+	err := tx.Where("mem002 IN ? AND mem011 = ?", accounts, agentID).Find(&members).Error
+	if err != nil {
+		return nil, err
+	}
+	return members, nil
 }
 
 const TableNameMember = "member"

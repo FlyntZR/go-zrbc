@@ -206,3 +206,33 @@ type TradeItem struct {
 type GetMemberTradeReportResp struct {
 	Result []*TradeItem `json:"result"` // Result data
 }
+
+// swagger:parameters EnableOrDisableMem
+type EnableOrDisableMemReq struct {
+	// 代理商(aid)
+	// in:formData
+	VendorID string `json:"vendorId" form:"vendorId"`
+	// 代理商标识符
+	// in:formData
+	Signature string `json:"signature" form:"signature"`
+	// 会员账号，多个账号用逗号分隔
+	// in:formData
+	User string `json:"user" form:"user"`
+	// 类型：login(登入) 或 bet(下注)
+	// in:formData
+	Type string `json:"type" form:"type"`
+	// 状态：Y(启用) 或 N(停用)
+	// in:formData
+	Status string `json:"status" form:"status"`
+	// 时间戳
+	// in:formData
+	Timestamp int64 `json:"timestamp" form:"timestamp"`
+	// 0:中文, 1:英文 (非必要)
+	// in:formData
+	Syslang int `json:"syslang" form:"syslang"`
+}
+
+// swagger:model
+type EnableOrDisableMemResp struct {
+	Result string `json:"result"`
+}

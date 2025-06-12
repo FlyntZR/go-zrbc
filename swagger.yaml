@@ -401,6 +401,13 @@ definitions:
                 x-go-name: Result
         type: object
         x-go-package: go-zrbc/view
+    EnableOrDisableMemResp:
+        properties:
+            result:
+                type: string
+                x-go-name: Result
+        type: object
+        x-go-package: go-zrbc/view
     GetAgentBalanceResp:
         properties:
             result:
@@ -959,6 +966,59 @@ paths:
                     description: EditLimitResp
                     schema:
                         $ref: '#/definitions/EditLimitResp'
+                "500":
+                    $ref: '#/responses/CommonError'
+            tags:
+                - api渠道接口
+    /v1/enable_or_disable_mem:
+        post:
+            consumes:
+                - multipart/form-data
+            description: 启用或停用会员
+            operationId: EnableOrDisableMem
+            parameters:
+                - description: 代理商(aid)
+                  in: formData
+                  name: vendorId
+                  type: string
+                  x-go-name: VendorID
+                - description: 代理商标识符
+                  in: formData
+                  name: signature
+                  type: string
+                  x-go-name: Signature
+                - description: 会员账号，多个账号用逗号分隔
+                  in: formData
+                  name: user
+                  type: string
+                  x-go-name: User
+                - description: 类型：login(登入) 或 bet(下注)
+                  in: formData
+                  name: type
+                  type: string
+                  x-go-name: Type
+                - description: 状态：Y(启用) 或 N(停用)
+                  in: formData
+                  name: status
+                  type: string
+                  x-go-name: Status
+                - description: 时间戳
+                  format: int64
+                  in: formData
+                  name: timestamp
+                  type: integer
+                  x-go-name: Timestamp
+                - description: 0:中文, 1:英文 (非必要)
+                  format: int64
+                  in: formData
+                  name: syslang
+                  type: integer
+                  x-go-name: Syslang
+            responses:
+                "200":
+                    description: EnableOrDisableMemResp
+                    schema:
+                        $ref: '#/definitions/EnableOrDisableMemResp'
                 "500":
                     $ref: '#/responses/CommonError'
             tags:
