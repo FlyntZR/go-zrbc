@@ -39,6 +39,7 @@ func (h *PublicApiHandler) SetRouter(r *gin.Engine) {
 	r.POST("/v1/change_balance", h.ChangeBalance)
 	r.POST("/v1/get_member_trade_report", h.GetMemberTradeReport)
 	r.POST("/v1/enable_or_disable_mem", h.EnableOrDisableMem)
+	r.POST("/v1/get_date_time_report", h.GetDateTimeReport)
 }
 
 func (h *PublicApiHandler) handlePublicApi(c *gin.Context) {
@@ -62,7 +63,6 @@ func (h *PublicApiHandler) handlePublicApi(c *gin.Context) {
 		"GetMemberTradeReport":   true,
 		"LogoutGame":             true,
 		"GetUnsettleReport":      true,
-		"GetDateTimeReportOld":   true,
 		"GetDateTimeCountReport": true,
 		"GetBalance":             true,
 		"ChangePassword":         true,
@@ -93,6 +93,8 @@ func (h *PublicApiHandler) handlePublicApi(c *gin.Context) {
 	case "EnableorDisablemem":
 		xlog.Debugf("EnableOrDisableMem req: %+v", c.Request.PostForm)
 		h.EnableOrDisableMem(c)
+	case "GetDateTimeReport":
+		h.GetDateTimeReport(c)
 	// Add other command handlers as needed
 	default:
 		if !passCommands[cmd] {
@@ -589,6 +591,83 @@ func (h *PublicApiHandler) EnableOrDisableMem(c *gin.Context) {
 
 	xlog.Debugf("EnableOrDisableMem req: %+v", &req)
 	resp, err := h.srv.EnableOrDisableMem(c, &req)
+	if err != nil {
+		commonresp.ErrResp(c, err)
+		return
+	}
+	commonresp.JsonResp(c, resp)
+}
+
+// swagger:route POST /v1/get_date_time_report api渠道接口 GetDateTimeReport
+// 获取会员时间报表
+// consumes:
+//   - multipart/form-data
+//
+// responses:
+//
+//	200: GetDateTimeReportResp
+//	500: CommonError
+func (h *PublicApiHandler) GetDateTimeReport(c *gin.Context) {
+	var req view.GetDateTimeReportReq
+	req.VendorID = c.PostForm("vendorId")
+	req.Signature = c.PostForm("signature")
+	req.User = c.PostForm("user")
+	startTimeStr := c.PostForm("startTime")
+	if startTimeStr != "" {
+		startTime, err := utils.Strtotime(startTimeStr)
+		if err != nil {
+			err := errors.New("startTime format error")
+			xlog.Errorf("startTime format error, err:%+v", err)
+			commonresp.ErrResp(c, err)
+			return
+		}
+		req.StartTime = startTime
+	} else {
+		req.StartTime = 0
+	}
+	endTimeStr := c.PostForm("endTime")
+	if endTimeStr != "" {
+		endTime, err := utils.Strtotime(endTimeStr)
+		if err != nil {
+			err := errors.New("endTime format error")
+			xlog.Errorf("endTime format error, err:%+v", err)
+			commonresp.ErrResp(c, err)
+			return
+		}
+		req.EndTime = endTime
+	} else {
+		req.EndTime = time.Now().Unix()
+	}
+	timeType, err := strconv.Atoi(c.PostForm("timetype"))
+	if err != nil {
+		xlog.Warnf("timetype is not a number, use default value 0")
+		timeType = 0
+	}
+	req.TimeType = timeType
+	dataType, err := strconv.Atoi(c.PostForm("datatype"))
+	if err != nil {
+		xlog.Warnf("datatype is not a number, use default value 0")
+		dataType = 0
+	}
+	req.DataType = dataType
+	req.GameNo1 = c.PostForm("gameno1")
+	req.GameNo2 = c.PostForm("gameno2")
+	timestamp, err := strconv.ParseInt(c.PostForm("timestamp"), 10, 64)
+	if err != nil {
+		xlog.Warnf("timestamp is not a number, use default value 0")
+		// 方便测试自动时间戳
+		timestamp = time.Now().Unix()
+	}
+	req.Timestamp = timestamp
+	syslang, err := strconv.Atoi(c.PostForm("syslang"))
+	if err != nil {
+		xlog.Warnf("syslang is not a number, use default value 0")
+		syslang = 0
+	}
+	req.Syslang = syslang
+
+	xlog.Debugf("GetDateTimeReport req: %+v", &req)
+	resp, err := h.srv.GetDateTimeReport(c, &req)
 	if err != nil {
 		commonresp.ErrResp(c, err)
 		return

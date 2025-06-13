@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"go-zrbc/config"
 	"go-zrbc/db"
+	"go-zrbc/pkg/gameUtil"
 	"go-zrbc/pkg/utils"
 	"go-zrbc/pkg/xlog"
 	"go-zrbc/service"
@@ -80,6 +81,7 @@ type PublicApiService interface {
 	ChangeBalance(ctx context.Context, req *view.ChangeBalanceReq) (*view.ChangeBalanceResp, error)
 	GetMemberTradeReport(ctx context.Context, req *view.GetMemberTradeReportReq) (*view.GetMemberTradeReportResp, error)
 	EnableOrDisableMem(ctx context.Context, req *view.EnableOrDisableMemReq) (*view.EnableOrDisableMemResp, error)
+	GetDateTimeReport(ctx context.Context, req *view.GetDateTimeReportReq) (*view.GetDateTimeReportResp, error)
 }
 
 type MemDtlDao interface {
@@ -106,6 +108,7 @@ type publicApiService struct {
 	inOutMDao           db.InOutMDao
 	logAgeCashChangeDao db.LogAgeCashChangeDao
 	alertMessageDao     db.AlertMessageDao
+	gameInfoDao         db.GameInfoDao
 
 	s3Client *s3.Client
 	redisCli *redis.Client
@@ -128,6 +131,7 @@ func NewPublicApiService(
 	inOutMDao db.InOutMDao,
 	logAgeCashChangeDao db.LogAgeCashChangeDao,
 	alertMessageDao db.AlertMessageDao,
+	gameInfoDao db.GameInfoDao,
 
 	s3Client *s3.Client,
 	redisCli *redis.Client,
@@ -147,6 +151,7 @@ func NewPublicApiService(
 		inOutMDao:           inOutMDao,
 		logAgeCashChangeDao: logAgeCashChangeDao,
 		alertMessageDao:     alertMessageDao,
+		gameInfoDao:         gameInfoDao,
 
 		s3Client: s3Client,
 		redisCli: redisCli,
@@ -2195,7 +2200,7 @@ func (srv *publicApiService) GetMemberTradeReport(ctx context.Context, req *view
 		var mIDs []int64
 		result := []*db.InOutM{}
 		err = srv.Tx(func(tx *gorm.DB) error {
-			mIDs, err = srv.bet02Dao.GetBet02s(tx, avgResp.Agent.ID, req.StartTime, req.EndTime)
+			mIDs, err = srv.bet02Dao.GetBet02List(tx, avgResp.Agent.ID, req.StartTime, req.EndTime)
 			if err != nil {
 				return err
 			}
@@ -2398,5 +2403,243 @@ func (srv *publicApiService) EnableOrDisableMem(ctx context.Context, req *view.E
 
 	return &view.EnableOrDisableMemResp{
 		Result: result,
+	}, nil
+}
+
+func (srv *publicApiService) GetDateTimeReport(ctx context.Context, req *view.GetDateTimeReportReq) (*view.GetDateTimeReportResp, error) {
+	// Validate timestamp
+	if err := utils.CheckTimestamp(req.Timestamp); err != nil {
+		xlog.Errorf("error to check timestamp, err:%+v", err)
+		return nil, err
+	}
+
+	// Verify agent
+	avgResp, err := srv.AgentVerify(ctx, &view.AgentVerifyReq{VendorID: req.VendorID, Signature: req.Signature})
+	if err != nil {
+		xlog.Errorf("error to verify agent, err:%+v", err)
+		return nil, err
+	}
+
+	// Get member by account if user is specified
+	var member *db.Member
+	if req.User != "" {
+		member, err = srv.userDao.QueryByAccount(srv.DB(), req.User)
+		if err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return nil, utils.ErrParamInvalidAccountNotExist
+			}
+			return nil, err
+		}
+		// Verify member belongs to agent
+		if member.Mem011 != avgResp.Agent.ID {
+			xlog.Errorf("error to verify member belongs to agent, err:%+v", utils.ErrParamInvalidAccountNotBelongToAgent)
+			return nil, utils.ErrParamInvalidAccountNotBelongToAgent
+		}
+	}
+
+	// Validate time range
+	if req.GameNo1 == "" && req.GameNo2 == "" {
+		if req.StartTime == 0 || req.EndTime == 0 {
+			return nil, utils.ErrCommandSuccessButNoData
+		}
+		if req.EndTime-req.StartTime > 86400 {
+			return nil, utils.ErrFunctionOnlyQueryOneDayReport
+		}
+	} else if req.GameNo1 == "" && req.GameNo2 != "" {
+		return nil, utils.ErrInvalidPeriodEmpty
+	}
+
+	// Get report key
+	GetDateTimeReportChkTime := "GetDateTimeReport_chkTime"
+	GetDateTimeReport10OR30 := "GetDateTimeReport_10OR30"
+	vid := req.VendorID
+
+	// Get last check time from Redis
+	chkt, err := srv.redisCli.HGet(ctx, GetDateTimeReportChkTime, vid).Result()
+	if err != nil && err != redis.Nil {
+		xlog.Errorf("error to get chkTime from Redis: %v", err)
+		return nil, utils.ErrRedisError
+	}
+	chk10or30, err := srv.redisCli.HGet(ctx, GetDateTimeReport10OR30, vid).Int()
+	if err != nil && err != redis.Nil {
+		xlog.Errorf("error to get chk10or30 from Redis: %v", err)
+		return nil, utils.ErrRedisError
+	}
+	// Get current time
+	chkTime := time.Now().Unix()
+	// Check if it's igktwapi or no result
+	if req.VendorID == "igktwapi" {
+		req.EndTime = req.StartTime + 60
+		if chkt == "" {
+			// First time access, set the time
+			err = srv.redisCli.HSet(ctx, GetDateTimeReportChkTime, vid, chkTime).Err()
+			if err != nil {
+				xlog.Errorf("error setting check time in Redis: %v", err)
+				return nil, utils.ErrRedisError
+			}
+			err = srv.redisCli.HSet(ctx, GetDateTimeReport10OR30, vid, 10).Err()
+			if err != nil {
+				xlog.Errorf("error setting check time in Redis: %v", err)
+				return nil, utils.ErrRedisError
+			}
+		} else {
+			lastChkTime, err := strconv.ParseInt(chkt, 10, 64)
+			if err != nil {
+				xlog.Errorf("error parsing last check time: %v", err)
+				return nil, utils.ErrRedisError
+			}
+			ct := chkTime - lastChkTime
+			if chk10or30 == 30 {
+				if ct < 30 {
+					return nil, utils.ErrInvalidTransactionTimeout
+				} else {
+					err = srv.redisCli.HSet(ctx, GetDateTimeReportChkTime, vid, chkTime).Err()
+					if err != nil {
+						xlog.Errorf("error setting check time in Redis: %v", err)
+						return nil, utils.ErrRedisError
+					}
+					err = srv.redisCli.HSet(ctx, GetDateTimeReport10OR30, vid, 10).Err()
+					if err != nil {
+						xlog.Errorf("error setting check time in Redis: %v", err)
+						return nil, utils.ErrRedisError
+					}
+				}
+			} else {
+				if ct < 10 {
+					return nil, utils.ErrInvalidTransactionTimeoutRepeat
+				} else {
+					err = srv.redisCli.HSet(ctx, GetDateTimeReportChkTime, vid, chkTime).Err()
+					if err != nil {
+						xlog.Errorf("error setting check time in Redis: %v", err)
+						return nil, utils.ErrRedisError
+					}
+					err = srv.redisCli.HSet(ctx, GetDateTimeReport10OR30, vid, 10).Err()
+					if err != nil {
+						xlog.Errorf("error setting check time in Redis: %v", err)
+						return nil, utils.ErrRedisError
+					}
+				}
+			}
+		}
+	} else {
+		if chkt == "" {
+			// First time access, set the time
+			err = srv.redisCli.HSet(ctx, GetDateTimeReportChkTime, vid, chkTime).Err()
+			if err != nil {
+				xlog.Errorf("error setting check time in Redis: %v", err)
+				return nil, utils.ErrRedisError
+			}
+			err = srv.redisCli.HSet(ctx, GetDateTimeReport10OR30, vid, 10).Err()
+			if err != nil {
+				xlog.Errorf("error setting check time in Redis: %v", err)
+				return nil, utils.ErrRedisError
+			}
+		} else {
+			// Check time difference
+			lastChkTime, err := strconv.ParseInt(chkt, 10, 64)
+			if err != nil {
+				xlog.Errorf("error parsing last check time: %v", err)
+				return nil, utils.ErrRedisError
+			}
+			ct := chkTime - lastChkTime
+			if chk10or30 == 10 {
+				if ct < 10 {
+					return nil, utils.ErrInvalidTransactionTimeoutRepeat
+				} else {
+					err = srv.redisCli.HSet(ctx, GetDateTimeReportChkTime, vid, chkTime).Err()
+					if err != nil {
+						xlog.Errorf("error setting check time in Redis: %v", err)
+						return nil, utils.ErrRedisError
+					}
+					err = srv.redisCli.HSet(ctx, GetDateTimeReport10OR30, vid, 10).Err()
+					if err != nil {
+						xlog.Errorf("error setting check time in Redis: %v", err)
+						return nil, utils.ErrRedisError
+					}
+				}
+			} else {
+				if ct < 30 {
+					return nil, utils.ErrInvalidTransactionTimeout
+				} else {
+					err = srv.redisCli.HSet(ctx, GetDateTimeReportChkTime, vid, chkTime).Err()
+					if err != nil {
+						xlog.Errorf("error setting check time in Redis: %v", err)
+						return nil, utils.ErrRedisError
+					}
+					err = srv.redisCli.HSet(ctx, GetDateTimeReport10OR30, vid, 10).Err()
+					if err != nil {
+						xlog.Errorf("error setting check time in Redis: %v", err)
+						return nil, utils.ErrRedisError
+					}
+				}
+			}
+		}
+	}
+
+	// Build query conditions
+	var bet02List []*db.Bet02Extra
+	var gameTypeList []*db.GameType
+	err = srv.Tx(func(tx *gorm.DB) error {
+		bet02List, err = srv.bet02Dao.GetBet02ListForMemberReport(tx, member.ID, avgResp.Agent.ID, req.StartTime, req.EndTime, req.DataType, req.TimeType, req.GameNo1, req.GameNo2)
+		if err != nil {
+			xlog.Errorf("error to get bet02 list: %v", err)
+			return err
+		}
+		// Get game info
+		gameTypeList, err = srv.gameTypeDao.QueryByStatus(srv.DB(), 1)
+		if err != nil {
+			xlog.Errorf("error to get game type: %v", err)
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	gameTypeMap := make(map[int64]string)
+	for _, gameType := range gameTypeList {
+		gameTypeMap[gameType.Code] = gameType.Cnname
+	}
+
+	// Convert to response format
+	var reportItems []*view.DateTimeReportItem
+	for _, bet := range bet02List {
+		bet02 := bet.Bet02
+		item := &view.DateTimeReportItem{
+			User:       "",
+			BetID:      strconv.FormatInt(bet.Bet01, 10),
+			BetTime:    bet02.Bet08.Format("2006-01-02 15:04:05"),
+			BeforeCash: bet02.Bet12,
+			Bet:        bet02.Bet13,
+			ValidBet:   bet02.Bet41,
+			Water:      bet02.Bet16,
+			Result:     bet02.Bet17,
+			BetCode:    bet02.Bet09,
+			BetResult:  gameUtil.GetBetContent(strconv.Itoa(bet02.Bet02), bet02.Bet09, "cn"),
+			WaterBet:   bet02.Bet41,
+			WinLoss:    bet02.Bet14.Sub(bet02.Bet13),
+			IP:         bet02.IP,
+			GID:        strconv.Itoa(bet02.Bet02),
+			Event:      bet02.Bet03.String(),
+			EventChild: strconv.Itoa(bet02.Bet04),
+			Round:      bet02.Bet03.String(),
+			Subround:   strconv.Itoa(bet02.Bet04),
+			TableID:    strconv.Itoa(bet02.Bet39),
+			Commission: decimal.NewFromInt(int64(bet02.Commission)),
+			Settime:    bet02.Updatetime.Format("2006-01-02 15:04:05"),
+			Reset:      bet02.Bet38,
+			GameResult: gameUtil.GetGameResultString(strconv.Itoa(bet02.Bet02), bet.Result),
+		}
+		if gameInfo, ok := gameTypeMap[int64(bet02.Bet02)]; ok {
+			item.GName = gameInfo
+		}
+		if member != nil {
+			item.User = member.User
+		}
+		reportItems = append(reportItems, item)
+	}
+
+	return &view.GetDateTimeReportResp{
+		Result: reportItems,
 	}, nil
 }

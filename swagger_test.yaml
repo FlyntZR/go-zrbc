@@ -394,6 +394,82 @@ definitions:
                 x-go-name: ID
         type: object
         x-go-package: go-zrbc/view
+    DateTimeReportItem:
+        properties:
+            beforeCash:
+                type: string
+                x-go-name: BeforeCash
+            bet:
+                type: string
+                x-go-name: Bet
+            betCode:
+                type: string
+                x-go-name: BetCode
+            betId:
+                type: string
+                x-go-name: BetID
+            betResult:
+                type: string
+                x-go-name: BetResult
+            betTime:
+                type: string
+                x-go-name: BetTime
+            commission:
+                type: string
+                x-go-name: Commission
+            event:
+                type: string
+                x-go-name: Event
+            eventChild:
+                type: string
+                x-go-name: EventChild
+            gameResult:
+                type: string
+                x-go-name: GameResult
+            gid:
+                type: string
+                x-go-name: GID
+            gname:
+                type: string
+                x-go-name: GName
+            ip:
+                type: string
+                x-go-name: IP
+            reset:
+                type: string
+                x-go-name: Reset
+            result:
+                type: string
+                x-go-name: Result
+            round:
+                type: string
+                x-go-name: Round
+            settime:
+                type: string
+                x-go-name: Settime
+            subround:
+                type: string
+                x-go-name: Subround
+            tableId:
+                type: string
+                x-go-name: TableID
+            user:
+                type: string
+                x-go-name: User
+            validbet:
+                type: string
+                x-go-name: ValidBet
+            water:
+                type: string
+                x-go-name: Water
+            waterbet:
+                type: string
+                x-go-name: WaterBet
+            winLoss:
+                type: string
+                x-go-name: WinLoss
+        type: object
+        x-go-package: go-zrbc/view
     EditLimitResp:
         properties:
             result:
@@ -434,6 +510,15 @@ definitions:
                 format: int64
                 type: integer
                 x-go-name: Total
+        type: object
+        x-go-package: go-zrbc/view
+    GetDateTimeReportResp:
+        properties:
+            result:
+                items:
+                    $ref: '#/definitions/DateTimeReportItem'
+                type: array
+                x-go-name: Result
         type: object
         x-go-package: go-zrbc/view
     GetFileResp:
@@ -1100,6 +1185,81 @@ paths:
                     description: GetBalanceResp
                     schema:
                         $ref: '#/definitions/GetBalanceResp'
+                "500":
+                    $ref: '#/responses/CommonError'
+            tags:
+                - api渠道接口
+    /v1/get_date_time_report:
+        post:
+            consumes:
+                - multipart/form-data
+            description: 获取会员时间报表
+            operationId: GetDateTimeReport
+            parameters:
+                - description: 代理商(aid)
+                  in: formData
+                  name: vendorId
+                  type: string
+                  x-go-name: VendorID
+                - description: 代理商标识符
+                  in: formData
+                  name: signature
+                  type: string
+                  x-go-name: Signature
+                - description: 会员(user)
+                  in: formData
+                  name: user
+                  type: string
+                  x-go-name: User
+                - description: 开始时间戳
+                  in: formData
+                  name: startTime
+                  type: string
+                  x-go-name: StartTimeStr
+                - description: 结束时间戳
+                  in: formData
+                  name: endTime
+                  type: string
+                  x-go-name: EndTimeStr
+                - description: 时间类型 0:下注时间 1:结算时间
+                  format: int64
+                  in: formData
+                  name: timetype
+                  type: integer
+                  x-go-name: TimeType
+                - description: 数据类型 0:一般数据 1:小费数据
+                  format: int64
+                  in: formData
+                  name: datatype
+                  type: integer
+                  x-go-name: DataType
+                - description: 游戏编号1
+                  in: formData
+                  name: gameno1
+                  type: string
+                  x-go-name: GameNo1
+                - description: 游戏编号2
+                  in: formData
+                  name: gameno2
+                  type: string
+                  x-go-name: GameNo2
+                - description: 时间戳
+                  format: int64
+                  in: formData
+                  name: timestamp
+                  type: integer
+                  x-go-name: Timestamp
+                - description: 0:中文, 1:英文 (非必要)
+                  format: int64
+                  in: formData
+                  name: syslang
+                  type: integer
+                  x-go-name: Syslang
+            responses:
+                "200":
+                    description: GetDateTimeReportResp
+                    schema:
+                        $ref: '#/definitions/GetDateTimeReportResp'
                 "500":
                     $ref: '#/responses/CommonError'
             tags:

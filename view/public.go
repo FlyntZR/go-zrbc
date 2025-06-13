@@ -236,3 +236,76 @@ type EnableOrDisableMemReq struct {
 type EnableOrDisableMemResp struct {
 	Result string `json:"result"`
 }
+
+// swagger:parameters GetDateTimeReport
+type GetDateTimeReportReq struct {
+	// 代理商(aid)
+	// in:formData
+	VendorID string `json:"vendorId" form:"vendorId"`
+	// 代理商标识符
+	// in:formData
+	Signature string `json:"signature" form:"signature"`
+	// 会员(user)
+	// in:formData
+	User string `json:"user" form:"user"`
+	// 开始时间戳
+	// in:formData
+	StartTimeStr string `json:"startTime" form:"startTime"`
+	// swagger:ignore
+	StartTime int64
+	// 结束时间戳
+	// in:formData
+	EndTimeStr string `json:"endTime" form:"endTime"`
+	// swagger:ignore
+	EndTime int64
+	// 时间类型 0:下注时间 1:结算时间
+	// in:formData
+	TimeType int `json:"timetype" form:"timetype"`
+	// 数据类型 0:一般数据 1:小费数据
+	// in:formData
+	DataType int `json:"datatype" form:"datatype"`
+	// 游戏编号1
+	// in:formData
+	GameNo1 string `json:"gameno1" form:"gameno1"`
+	// 游戏编号2
+	// in:formData
+	GameNo2 string `json:"gameno2" form:"gameno2"`
+	// 时间戳
+	// in:formData
+	Timestamp int64 `json:"timestamp" form:"timestamp"`
+	// 0:中文, 1:英文 (非必要)
+	// in:formData
+	Syslang int `json:"syslang" form:"syslang"`
+}
+
+type DateTimeReportItem struct {
+	User       string          `json:"user"`
+	BetID      string          `json:"betId"`
+	BetTime    string          `json:"betTime"`
+	BeforeCash decimal.Decimal `json:"beforeCash"`
+	Bet        decimal.Decimal `json:"bet"`
+	ValidBet   decimal.Decimal `json:"validbet"`
+	Water      decimal.Decimal `json:"water"`
+	Result     decimal.Decimal `json:"result"`
+	BetCode    string          `json:"betCode"`
+	BetResult  string          `json:"betResult"`
+	WaterBet   decimal.Decimal `json:"waterbet"`
+	WinLoss    decimal.Decimal `json:"winLoss"`
+	IP         string          `json:"ip"`
+	GID        string          `json:"gid"`
+	Event      string          `json:"event"`
+	EventChild string          `json:"eventChild"`
+	Round      string          `json:"round"`
+	Subround   string          `json:"subround"`
+	TableID    string          `json:"tableId"`
+	Commission decimal.Decimal `json:"commission"`
+	Settime    string          `json:"settime"`
+	Reset      string          `json:"reset"`
+	GameResult string          `json:"gameResult"`
+	GName      string          `json:"gname"`
+}
+
+// swagger:model
+type GetDateTimeReportResp struct {
+	Result []*DateTimeReportItem `json:"result"`
+}

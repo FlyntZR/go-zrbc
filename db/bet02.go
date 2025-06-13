@@ -14,7 +14,8 @@ type Bet02Dao interface {
 	Update(tx *gorm.DB, bet02 *Bet02) error
 	Updates(tx *gorm.DB, bet01 int64, data map[string]interface{}) error
 	GetAgentWinloss(tx *gorm.DB, agentID int64) (decimal.Decimal, error)
-	GetBet02s(tx *gorm.DB, agentID int64, startTime, endTime int64) ([]int64, error)
+	GetBet02List(tx *gorm.DB, agentID int64, startTime, endTime int64) ([]int64, error)
+	GetBet02ListForMemberReport(tx *gorm.DB, memberID, agentID, startTime, endTime int64, dataType, timeType int, gameNo1, gameNo2 string) ([]*Bet02Extra, error)
 }
 
 type bet02Dao struct{}
@@ -63,7 +64,7 @@ func (dao *bet02Dao) GetAgentWinloss(tx *gorm.DB, agentID int64) (decimal.Decima
 }
 
 // GetBet02s gets member IDs for an agent within a time range
-func (dao *bet02Dao) GetBet02s(tx *gorm.DB, agentID int64, startTime, endTime int64) ([]int64, error) {
+func (dao *bet02Dao) GetBet02List(tx *gorm.DB, agentID int64, startTime, endTime int64) ([]int64, error) {
 	var memberIDs []int64
 	conn := tx.Table(TableNameBet02)
 
@@ -72,7 +73,7 @@ func (dao *bet02Dao) GetBet02s(tx *gorm.DB, agentID int64, startTime, endTime in
 	}
 
 	if startTime != 0 && endTime != 0 {
-		conn = conn.Where("bet08 BETWEEN ? AND ?", startTime, endTime)
+		conn = conn.Where("bet08 BETWEEN ? AND ?", time.Unix(startTime, 0).Format("2006-01-02 15:04:05"), time.Unix(endTime, 0).Format("2006-01-02 15:04:05"))
 	} else {
 		// Default to last hour if no time range specified
 		now := time.Now()
@@ -86,6 +87,43 @@ func (dao *bet02Dao) GetBet02s(tx *gorm.DB, agentID int64, startTime, endTime in
 		return nil, err
 	}
 	return memberIDs, nil
+}
+
+// GetMemberReport gets member report data based on where clause and action
+func (dao *bet02Dao) GetBet02ListForMemberReport(tx *gorm.DB, memberID int64, agentID int64, startTime, endTime int64, dataType, timeType int, gameNo1, gameNo2 string) ([]*Bet02Extra, error) {
+	var ret = []*Bet02Extra{}
+	conn := tx.Table("bet02").Joins("LEFT JOIN game_info ON bet02 = game_info.gi001 AND bet03 = game_info.gi002 AND bet04 = game_info.gi003").Select("bet02.*, game_info.gi007 as result")
+
+	if memberID != 0 {
+		conn = conn.Where("bet05 = ?", memberID)
+	} else {
+		conn = conn.Where("bet22 = ?", agentID)
+	}
+	if dataType == 0 {
+		conn = conn.Where("bet09 != ?", "Tip_1_")
+	} else if dataType == 1 {
+		conn = conn.Where("bet09 = ?", "Tip_1_")
+	}
+
+	// Add game number filters
+	if gameNo1 != "" {
+		conn = conn.Where("bet03 = ?", gameNo1)
+		if gameNo2 != "" {
+			conn = conn.Where("bet04 = ?", gameNo2)
+		}
+	}
+	// Add time range filters
+	if timeType == 1 {
+		conn = conn.Where("updatetime BETWEEN ? AND ?", time.Unix(startTime, 0).Format("2006-01-02 15:04:05"), time.Unix(endTime, 0).Format("2006-01-02 15:04:05"))
+	} else {
+		conn = conn.Where("bet08 BETWEEN ? AND ?", time.Unix(startTime, 0).Format("2006-01-02 15:04:05"), time.Unix(endTime, 0).Format("2006-01-02 15:04:05"))
+	}
+
+	err := conn.Find(&ret).Error
+	if err != nil {
+		return nil, err
+	}
+	return ret, nil
 }
 
 const TableNameBet02 = "bet02"
@@ -146,6 +184,11 @@ type Bet02 struct {
 	PartnerBetID   string          `gorm:"column:partnerBetId;comment:第三方注單編號" json:"partnerBetId"`                               // 第三方注單編號
 	GameID         string          `gorm:"column:gameId;comment:第三方遊戲下注代號或名稱" json:"gameId"`                                      // 第三方遊戲下注代號或名稱
 	Updatetime     time.Time       `gorm:"column:updatetime;not null;default:current_timestamp();comment:更新時間" json:"updatetime"` // 更新時間
+}
+
+type Bet02Extra struct {
+	Bet02
+	Result string `gorm:"column:result;not null;comment:結果" json:"result"`
 }
 
 // TableName Bet02's table name
