@@ -669,7 +669,7 @@ func validateChips(chips string) (string, error) {
 	chipMap := make(map[string]bool)
 	for _, chip := range chipsList {
 		// Add validation for allowed chip values
-		chipInt, err := strconv.Atoi(chip)
+		chipInt, err := strconv.ParseInt(chip, 10, 64)
 		if err != nil {
 			return "", utils.ErrInvalidChipsFormat
 		}
