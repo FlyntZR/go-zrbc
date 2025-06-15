@@ -212,6 +212,8 @@ const (
 	CodeSystemMaintenance ErrorCode = 911
 	// redis错误
 	CodeRedisError ErrorCode = 912
+	// es错误
+	CodeEsError ErrorCode = 914
 )
 
 // CustomError 自定义错误类型
@@ -328,4 +330,5 @@ var (
 	ErrInvalidPeriodNotExist                       = NewError(CodeInvalidPeriodNotExist, "期数资料不存在")
 	ErrFunctionOnlyQueryOneDayReport               = NewError(CodeFunctionOnlyQueryOneDayReport, "此功能仅能查询一天内的报表，您已超过上限")
 	ErrRedisError                                  = NewError(CodeRedisError, "Redis错误")
+	ErrEsError                                     = NewError(CodeEsError, "ES错误")
 )

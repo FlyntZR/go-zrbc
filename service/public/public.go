@@ -2129,6 +2129,42 @@ func (srv *publicApiService) GetMemberTradeReport(ctx context.Context, req *view
 		mIDs := []int64{member.ID}
 		var result []*db.InOutM
 		err = srv.Tx(func(tx *gorm.DB) error {
+			// Try to get data from Elasticsearch first
+			if srv.esClient != nil {
+				esResults, err := srv.esClient.GetInOutMsEs(ctx, mIDs, req.OrderID, req.Order, req.StartTime, req.EndTime)
+				if err != nil {
+					xlog.Errorf("error to get in_out_m from ES: %v", err)
+					// Fall back to database if ES fails
+				} else {
+					// Convert ES results to InOutM format
+					for _, esResult := range esResults {
+						xlog.Infof("esResult: %+v", esResult)
+						iom001, ok := esResult["iom001"].(float64)
+						if !ok {
+							xlog.Errorf("invalid type for iom001: %T", esResult["iom001"])
+							return utils.ErrEsError
+						}
+						inOutM := &db.InOutM{
+							Iom001: int64(iom001 * 1000000),
+							Iom002: func() time.Time {
+								t, _ := time.Parse(time.RFC3339, esResult["iom002"].(string))
+								return t
+							}(),
+							Iom003: int64(esResult["iom003"].(float64)),
+							Iom004: decimal.NewFromFloat(esResult["iom004"].(float64)),
+							Iom005: esResult["iom005"].(string),
+							Iom006: int64(esResult["iom006"].(float64)),
+							Iom007: int64(esResult["iom007"].(float64)),
+							Iom008: esResult["iom008"].(string),
+							Iom009: int64(esResult["iom009"].(float64)),
+							Iom010: decimal.NewFromFloat(esResult["iom010"].(float64)),
+						}
+						result = append(result, inOutM)
+					}
+					return nil
+				}
+			}
+			// Fall back to database query
 			result, err = srv.inOutMDao.GetInOutMs(tx, mIDs, req.OrderID, req.Order, req.StartTime, req.EndTime)
 			if err != nil {
 				return err
@@ -2169,82 +2205,52 @@ func (srv *publicApiService) GetMemberTradeReport(ctx context.Context, req *view
 			if err != nil {
 				return err
 			}
-			result, err = srv.inOutMDao.GetInOutMs(tx, mIDs, req.OrderID, req.Order, req.StartTime, req.EndTime)
-			if err != nil {
-				return err
+			// Try to get data from Elasticsearch first
+			if srv.esClient != nil {
+				esResults, err := srv.esClient.GetInOutMsEs(ctx, mIDs, req.OrderID, req.Order, req.StartTime, req.EndTime)
+				if err != nil {
+					xlog.Errorf("error to get in_out_m from ES: %v", err)
+					// Fall back to database if ES fails
+				} else {
+					// Convert ES results to InOutM format
+					for _, esResult := range esResults {
+						xlog.Infof("esResult: %+v", esResult)
+						iom001, ok := esResult["iom001"].(float64)
+						if !ok {
+							xlog.Errorf("invalid type for iom001: %T", esResult["iom001"])
+							return utils.ErrRedisError
+						}
+						inOutM := &db.InOutM{
+							Iom001: int64(iom001 * 1000000),
+							Iom002: func() time.Time {
+								t, _ := time.Parse(time.RFC3339, esResult["iom002"].(string))
+								return t
+							}(),
+							Iom003: int64(esResult["iom003"].(float64)),
+							Iom004: decimal.NewFromFloat(esResult["iom004"].(float64)),
+							Iom005: esResult["iom005"].(string),
+							Iom006: int64(esResult["iom006"].(float64)),
+							Iom007: int64(esResult["iom007"].(float64)),
+							Iom008: esResult["iom008"].(string),
+							Iom009: int64(esResult["iom009"].(float64)),
+							Iom010: decimal.NewFromFloat(esResult["iom010"].(float64)),
+						}
+						result = append(result, inOutM)
+					}
+				}
+			}
+			if len(result) == 0 {
+				// Fall back to database query
+				result, err = srv.inOutMDao.GetInOutMs(tx, mIDs, req.OrderID, req.Order, req.StartTime, req.EndTime)
+				if err != nil {
+					return err
+				}
+				return nil
 			}
 			return nil
 		})
-
-		// Get member trade report key
-		GetMemberTradeReport := "GetMemberTradeReport"
-		vid := req.VendorID
-
-		// Get last check time from Redis
-		chkt, err := srv.redisCli.HGet(ctx, GetMemberTradeReport, vid).Result()
-		if err != nil && err != redis.Nil {
-			xlog.Warnf("error to get last check time from Redis: %v", err)
-		}
-
-		// Get current time
-		chkTime := time.Now().Unix()
-		// Check if it's igktwapi or no result
-		if req.VendorID == "igktwapi" || len(result) == 0 {
-			if chkt == "" {
-				// First time access, set the time
-				err = srv.redisCli.HSet(ctx, GetMemberTradeReport, vid, chkTime).Err()
-				if err != nil {
-					xlog.Errorf("error setting check time in Redis: %v", err)
-					return nil, utils.ErrRedisError
-				}
-			} else {
-				// Check time difference
-				lastChkTime, err := strconv.ParseInt(chkt, 10, 64)
-				if err != nil {
-					xlog.Errorf("error parsing last check time: %v", err)
-					return nil, utils.ErrRedisError
-				}
-
-				ct := chkTime - lastChkTime
-				if ct < 10 {
-					return nil, utils.ErrInvalidTransactionTimeoutRepeat
-				}
-
-				// Update check time
-				err = srv.redisCli.HSet(ctx, GetMemberTradeReport, vid, chkTime).Err()
-				if err != nil {
-					xlog.Errorf("error updating check time in Redis: %v", err)
-					return nil, utils.ErrRedisError
-				}
-			}
-		} else {
-			if chkt == "" {
-				// First time access, set the time
-				err = srv.redisCli.HSet(ctx, GetMemberTradeReport, vid, chkTime).Err()
-				if err != nil {
-					xlog.Errorf("error setting check time in Redis: %v", err)
-					return nil, utils.ErrRedisError
-				}
-			} else {
-				// Check time difference
-				lastChkTime, err := strconv.ParseInt(chkt, 10, 64)
-				if err != nil {
-					xlog.Errorf("error parsing last check time: %v", err)
-					return nil, utils.ErrRedisError
-				}
-
-				ct := chkTime - lastChkTime
-				if ct < 30 {
-					return nil, utils.ErrInvalidTransactionTimeout
-				}
-
-				// Update check time
-				err = srv.redisCli.HSet(ctx, GetMemberTradeReport, vid, chkTime).Err()
-				if err != nil {
-					xlog.Errorf("error updating check time in Redis: %v", err)
-					return nil, utils.ErrRedisError
-				}
-			}
+		if err != nil {
+			return nil, err
 		}
 		var tradeItems []*view.TradeItem
 		for _, v := range result {
@@ -2556,10 +2562,9 @@ func (srv *publicApiService) GetDateTimeReport(ctx context.Context, req *view.Ge
 	var bet02List []*db.Bet02Extra
 	if srv.esClient != nil {
 		// Use ES client to get data
-		results, err := srv.esClient.GetBet02ListForMemberReportEs(ctx, member.ID, avgResp.Agent.ID, req.StartTime, req.EndTime, req.DataType, req.TimeType, req.GameNo1, req.GameNo2)
+		results, err := srv.esClient.GetBet02ListForDateTimeReportEs(ctx, member.ID, avgResp.Agent.ID, req.StartTime, req.EndTime, req.DataType, req.TimeType, req.GameNo1, req.GameNo2)
 		if err != nil {
 			xlog.Errorf("error to get bet02 list from ES: %v", err)
-			// Fall back to database if ES fails
 		} else {
 			// Convert ES results to Bet02Extra format
 			for _, result := range results {
