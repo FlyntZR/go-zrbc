@@ -557,6 +557,15 @@ definitions:
                 x-go-name: Tz
         type: object
         x-go-package: go-zrbc/view
+    GetTipReportResp:
+        properties:
+            result:
+                items:
+                    $ref: '#/definitions/TipReportItem'
+                type: array
+                x-go-name: Result
+        type: object
+        x-go-package: go-zrbc/view
     GetUserInfoResp:
         properties:
             data:
@@ -793,6 +802,56 @@ definitions:
                 x-go-name: Result
         type: object
         x-go-package: go-zrbc/view
+    TipReportItem:
+        properties:
+            betId:
+                type: string
+                x-go-name: BetID
+            betResult:
+                type: string
+                x-go-name: BetResult
+            betTime:
+                type: string
+                x-go-name: BetTime
+            event:
+                type: string
+                x-go-name: Event
+            eventChild:
+                type: string
+                x-go-name: EventChild
+            gid:
+                type: string
+                x-go-name: GID
+            gname:
+                type: string
+                x-go-name: GName
+            id:
+                format: int64
+                type: integer
+                x-go-name: ID
+            ip:
+                type: string
+                x-go-name: IP
+            round:
+                type: string
+                x-go-name: Round
+            subround:
+                type: string
+                x-go-name: Subround
+            tableId:
+                type: string
+                x-go-name: TableID
+            tip:
+                type: string
+                x-go-name: Tip
+            username:
+                type: string
+                x-go-name: Username
+            winLoss:
+                type: string
+                x-go-name: WinLoss
+        type: object
+        x-go-package: go-zrbc/view
     TokenUser:
         properties:
             id:
@@ -899,11 +958,10 @@ paths:
                   type: integer
                   x-go-name: Timestamp
                 - description: 0:中文, 1:英文 (非必要)
-                  format: int64
                   in: formData
                   name: syslang
-                  type: integer
-                  x-go-name: Syslang
+                  type: string
+                  x-go-name: SyslangStr
             responses:
                 "200":
                     description: ChangeBalanceResp
@@ -947,11 +1005,10 @@ paths:
                   type: integer
                   x-go-name: Timestamp
                 - description: 0:中文, 1:英文 (非必要)
-                  format: int64
                   in: formData
                   name: syslang
-                  type: integer
-                  x-go-name: Syslang
+                  type: string
+                  x-go-name: SyslangStr
             responses:
                 "200":
                     description: ChangePasswordResp
@@ -1041,11 +1098,10 @@ paths:
                   type: integer
                   x-go-name: Timestamp
                 - description: 0:中文, 1:英文 (非必要)
-                  format: int64
                   in: formData
                   name: syslang
-                  type: integer
-                  x-go-name: Syslang
+                  type: string
+                  x-go-name: SyslangStr
             responses:
                 "200":
                     description: EditLimitResp
@@ -1094,11 +1150,10 @@ paths:
                   type: integer
                   x-go-name: Timestamp
                 - description: 0:中文, 1:英文 (非必要)
-                  format: int64
                   in: formData
                   name: syslang
-                  type: integer
-                  x-go-name: Syslang
+                  type: string
+                  x-go-name: SyslangStr
             responses:
                 "200":
                     description: EnableOrDisableMemResp
@@ -1132,11 +1187,10 @@ paths:
                   type: integer
                   x-go-name: Timestamp
                 - description: 0:中文, 1:英文 (非必要)
-                  format: int64
                   in: formData
                   name: syslang
-                  type: integer
-                  x-go-name: Syslang
+                  type: string
+                  x-go-name: SyslangStr
             responses:
                 "200":
                     description: GetAgentBalanceResp
@@ -1175,11 +1229,10 @@ paths:
                   type: integer
                   x-go-name: Timestamp
                 - description: 0:中文, 1:英文 (非必要)
-                  format: int64
                   in: formData
                   name: syslang
-                  type: integer
-                  x-go-name: Syslang
+                  type: string
+                  x-go-name: SyslangStr
             responses:
                 "200":
                     description: GetBalanceResp
@@ -1250,11 +1303,10 @@ paths:
                   type: integer
                   x-go-name: Timestamp
                 - description: 0:中文, 1:英文 (非必要)
-                  format: int64
                   in: formData
                   name: syslang
-                  type: integer
-                  x-go-name: Syslang
+                  type: string
+                  x-go-name: SyslangStr
             responses:
                 "200":
                     description: GetDateTimeReportResp
@@ -1343,11 +1395,10 @@ paths:
                   type: integer
                   x-go-name: Timestamp
                 - description: 0:中文, 1:英文 (非必要)
-                  format: int64
                   in: formData
                   name: syslang
-                  type: integer
-                  x-go-name: Syslang
+                  type: string
+                  x-go-name: SyslangStr
             responses:
                 "200":
                     description: GetMemberTradeReportResp
@@ -1392,6 +1443,58 @@ paths:
                     $ref: '#/responses/CommonError'
             tags:
                 - S3接口
+    /v1/get_tip_report:
+        post:
+            consumes:
+                - multipart/form-data
+            description: 获取小费报表
+            operationId: GetTipReport
+            parameters:
+                - description: 代理商(aid)
+                  in: formData
+                  name: vendorId
+                  type: string
+                  x-go-name: VendorID
+                - description: 代理商标识符
+                  in: formData
+                  name: signature
+                  type: string
+                  x-go-name: Signature
+                - description: 会员(user)
+                  in: formData
+                  name: user
+                  type: string
+                  x-go-name: User
+                - description: 开始时间戳
+                  in: formData
+                  name: startTime
+                  type: string
+                  x-go-name: StartTimeStr
+                - description: 结束时间戳
+                  in: formData
+                  name: endTime
+                  type: string
+                  x-go-name: EndTimeStr
+                - description: 时间戳
+                  format: int64
+                  in: formData
+                  name: timestamp
+                  type: integer
+                  x-go-name: Timestamp
+                - description: 0:中文, 1:英文 (非必要)
+                  in: formData
+                  name: syslang
+                  type: string
+                  x-go-name: SyslangStr
+            responses:
+                "200":
+                    description: GetTipReportResp
+                    schema:
+                        $ref: '#/definitions/GetTipReportResp'
+                "500":
+                    $ref: '#/responses/CommonError'
+            tags:
+                - api渠道接口
     /v1/logout_game:
         post:
             consumes:
@@ -1421,11 +1524,10 @@ paths:
                   type: integer
                   x-go-name: Timestamp
                 - description: 0:中文, 1:英文 (非必要)
-                  format: int64
                   in: formData
                   name: syslang
-                  type: integer
-                  x-go-name: Syslang
+                  type: string
+                  x-go-name: SyslangStr
             responses:
                 "200":
                     description: LogoutGameResp
@@ -1523,11 +1625,10 @@ paths:
                   type: integer
                   x-go-name: Timestamp
                 - description: 0:中文, 1:英文 (非必要)
-                  format: int64
                   in: formData
                   name: syslang
-                  type: integer
-                  x-go-name: Syslang
+                  type: string
+                  x-go-name: SyslangStr
             responses:
                 "200":
                     description: MemberRegisterResp
@@ -1653,11 +1754,10 @@ paths:
                   type: string
                   x-go-name: Video
                 - description: 0:中文, 1:英文 (非必要)
-                  format: int64
                   in: formData
                   name: syslang
-                  type: integer
-                  x-go-name: Syslang
+                  type: string
+                  x-go-name: SyslangStr
                 - description: 籌碼選擇
                   in: query
                   name: chip

@@ -15,7 +15,8 @@ type Bet02Dao interface {
 	Updates(tx *gorm.DB, bet01 int64, data map[string]interface{}) error
 	GetAgentWinloss(tx *gorm.DB, agentID int64) (decimal.Decimal, error)
 	GetBet02List(tx *gorm.DB, agentID int64, startTime, endTime int64) ([]int64, error)
-	GetBet02ListForMemberReport(tx *gorm.DB, memberID, agentID, startTime, endTime int64, dataType, timeType int, gameNo1, gameNo2 string) ([]*Bet02Extra, error)
+	GetBet02ListForDateTimeReport(tx *gorm.DB, memberID, agentID, startTime, endTime int64, dataType, timeType int, gameNo1, gameNo2 string) ([]*Bet02Extra, error)
+	GetBet02ListForTipReport(tx *gorm.DB, memberID, agentID, startTime, endTime int64, dataType, timeType int, gameNo1, gameNo2 string) ([]*Bet02Extra, error)
 }
 
 type bet02Dao struct{}
@@ -90,7 +91,7 @@ func (dao *bet02Dao) GetBet02List(tx *gorm.DB, agentID int64, startTime, endTime
 }
 
 // GetMemberReport gets member report data based on where clause and action
-func (dao *bet02Dao) GetBet02ListForMemberReport(tx *gorm.DB, memberID int64, agentID int64, startTime, endTime int64, dataType, timeType int, gameNo1, gameNo2 string) ([]*Bet02Extra, error) {
+func (dao *bet02Dao) GetBet02ListForDateTimeReport(tx *gorm.DB, memberID int64, agentID int64, startTime, endTime int64, dataType, timeType int, gameNo1, gameNo2 string) ([]*Bet02Extra, error) {
 	var ret = []*Bet02Extra{}
 	conn := tx.Table("bet02").Joins("LEFT JOIN game_info ON bet02 = game_info.gi001 AND bet03 = game_info.gi002 AND bet04 = game_info.gi003").
 		Joins("LEFT JOIN member ON bet05 = member.mem001").Joins("LEFT JOIN game_type ON game_type.Code = bet02").
@@ -120,6 +121,33 @@ func (dao *bet02Dao) GetBet02ListForMemberReport(tx *gorm.DB, memberID int64, ag
 	} else {
 		conn = conn.Where("bet08 BETWEEN ? AND ?", time.Unix(startTime, 0).Format("2006-01-02 15:04:05"), time.Unix(endTime, 0).Format("2006-01-02 15:04:05"))
 	}
+
+	err := conn.Find(&ret).Error
+	if err != nil {
+		return nil, err
+	}
+	return ret, nil
+}
+
+func (dao *bet02Dao) GetBet02ListForTipReport(tx *gorm.DB, memberID int64, agentID int64, startTime, endTime int64, dataType, timeType int, gameNo1, gameNo2 string) ([]*Bet02Extra, error) {
+	var ret = []*Bet02Extra{}
+	conn := tx.Table("bet02").Joins("LEFT JOIN game_type ON game_type.Code = bet02").Joins("LEFT JOIN member ON bet05 = member.mem001").Select("bet02.*, game_type.cnname as gname, member.mem002 as user").Where("category = 2")
+
+	if memberID != 0 {
+		conn = conn.Where("bet05 = ?", memberID)
+	} else {
+		conn = conn.Where("bet22 = ?", agentID)
+	}
+
+	// Add game number filters
+	if gameNo1 != "" {
+		conn = conn.Where("bet03 = ?", gameNo1)
+		if gameNo2 != "" {
+			conn = conn.Where("bet04 = ?", gameNo2)
+		}
+	}
+	// Add time range filters
+	conn = conn.Where("bet08 BETWEEN ? AND ?", time.Unix(startTime, 0).Format("2006-01-02 15:04:05"), time.Unix(endTime, 0).Format("2006-01-02 15:04:05"))
 
 	err := conn.Find(&ret).Error
 	if err != nil {

@@ -219,6 +219,60 @@ type GetMemberTradeReportResp struct {
 	Result []*TradeItem `json:"result"` // Result data
 }
 
+// swagger:parameters GetTipReport
+type GetTipReportReq struct {
+	// 代理商(aid)
+	// in:formData
+	VendorID string `json:"vendorId" form:"vendorId"`
+	// 代理商标识符
+	// in:formData
+	Signature string `json:"signature" form:"signature"`
+	// 会员(user)
+	// in:formData
+	User string `json:"user" form:"user"`
+	// 开始时间戳
+	// in:formData
+	StartTimeStr string `json:"startTime" form:"startTime"`
+	// swagger:ignore
+	StartTime int64
+	// 结束时间戳
+	// in:formData
+	EndTimeStr string `json:"endTime" form:"endTime"`
+	// swagger:ignore
+	EndTime int64
+	// 时间戳
+	// in:formData
+	Timestamp int64 `json:"timestamp" form:"timestamp"`
+	// 0:中文, 1:英文 (非必要)
+	// in:formData
+	SyslangStr string `json:"syslang" form:"syslang"`
+	// swagger:ignore
+	Syslang string
+}
+
+type TipReportItem struct {
+	BetID      string          `json:"betId"`
+	ID         int64           `json:"id"`
+	BetTime    string          `json:"betTime"`
+	Tip        decimal.Decimal `json:"tip"`
+	BetResult  string          `json:"betResult"`
+	WinLoss    decimal.Decimal `json:"winLoss"`
+	IP         string          `json:"ip"`
+	GID        string          `json:"gid"`
+	Event      string          `json:"event"`
+	Round      string          `json:"round"`
+	Subround   string          `json:"subround"`
+	EventChild string          `json:"eventChild"`
+	TableID    string          `json:"tableId"`
+	Username   string          `json:"username"`
+	GName      string          `json:"gname"`
+}
+
+// swagger:model
+type GetTipReportResp struct {
+	Result []*TipReportItem `json:"result"` // Result data
+}
+
 // swagger:parameters EnableOrDisableMem
 type EnableOrDisableMemReq struct {
 	// 代理商(aid)
