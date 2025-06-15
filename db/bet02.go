@@ -92,7 +92,9 @@ func (dao *bet02Dao) GetBet02List(tx *gorm.DB, agentID int64, startTime, endTime
 // GetMemberReport gets member report data based on where clause and action
 func (dao *bet02Dao) GetBet02ListForMemberReport(tx *gorm.DB, memberID int64, agentID int64, startTime, endTime int64, dataType, timeType int, gameNo1, gameNo2 string) ([]*Bet02Extra, error) {
 	var ret = []*Bet02Extra{}
-	conn := tx.Table("bet02").Joins("LEFT JOIN game_info ON bet02 = game_info.gi001 AND bet03 = game_info.gi002 AND bet04 = game_info.gi003").Select("bet02.*, game_info.gi007 as result")
+	conn := tx.Table("bet02").Joins("LEFT JOIN game_info ON bet02 = game_info.gi001 AND bet03 = game_info.gi002 AND bet04 = game_info.gi003").
+		Joins("LEFT JOIN member ON bet05 = member.mem001").Joins("LEFT JOIN game_type ON game_type.Code = bet02").
+		Select("bet02.*, game_info.gi007 as result, member.mem002 as user, game_type.cnname as gname")
 
 	if memberID != 0 {
 		conn = conn.Where("bet05 = ?", memberID)
@@ -189,6 +191,8 @@ type Bet02 struct {
 type Bet02Extra struct {
 	Bet02
 	Result string `gorm:"column:result;not null;comment:結果" json:"result"`
+	User   string `gorm:"column:user;not null;comment:會員名" json:"user"`
+	GName  string `gorm:"column:gname;not null;comment:遊戲名稱" json:"gname"`
 }
 
 // TableName Bet02's table name

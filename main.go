@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"go-zrbc/config"
 	"go-zrbc/db"
+	"go-zrbc/es"
 	"go-zrbc/http"
 	awsS3 "go-zrbc/pkg/oss"
 	"go-zrbc/pkg/xlog"
@@ -77,6 +78,11 @@ func Start() {
 		DB:       config.Global.Redis.DB,       // use default DB
 	})
 	s3Client := awsS3.S3Client()
+	esClient, err := es.NewClient(config.Global.ES.URL)
+	if err != nil {
+		xlog.Errorf("error to create es client: %v", err)
+		return
+	}
 
 	userDao := db.NewMemberDao()
 	barrageDao := db.NewBarrageDao()
@@ -95,7 +101,7 @@ func Start() {
 	alertMessageDao := db.NewAlertMessageDao()
 	gameInfoDao := db.NewGameInfoDao()
 
-	userSrv := pService.NewPublicApiService(sess, userDao, apiurlDao, wechatURLDao, agentsLoginPassDao, agentDao, memLoginDao, bet02Dao, agentDtlDao, betLimitDao, memberDtlDao, gameTypeDao, inOutMDao, logAgeCashChangeDao, alertMessageDao, gameInfoDao, s3Client, redisCli)
+	userSrv := pService.NewPublicApiService(sess, userDao, apiurlDao, wechatURLDao, agentsLoginPassDao, agentDao, memLoginDao, bet02Dao, agentDtlDao, betLimitDao, memberDtlDao, gameTypeDao, inOutMDao, logAgeCashChangeDao, alertMessageDao, gameInfoDao, s3Client, redisCli, esClient)
 	s3Srv := sService.NewS3Service()
 	webSrv := wService.NewWebService(sess, barrageDao, s3Client, redisCli)
 

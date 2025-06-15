@@ -27,6 +27,11 @@ type Config struct {
 	Agent          string `json:"agent"`        // 网络代理，如果非空，则需要使用代理
 	SMSSupplier    int    `json:"sms_supplier"` // 短信验证码供应商
 	SMSModeID      string `json:"sms_mode_id"`  // 短信验证码模板id
+	ES             ES     `json:"es"`
+}
+
+type ES struct {
+	URL string `json:"url"`
 }
 
 type Redis struct {

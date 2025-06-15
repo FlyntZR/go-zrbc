@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"go-zrbc/config"
 	"go-zrbc/db"
+	"go-zrbc/es"
 	"go-zrbc/pkg/gameUtil"
 	"go-zrbc/pkg/utils"
 	"go-zrbc/pkg/xlog"
@@ -112,6 +113,7 @@ type publicApiService struct {
 
 	s3Client *s3.Client
 	redisCli *redis.Client
+	esClient *es.Client
 	*service.Session
 }
 
@@ -135,6 +137,7 @@ func NewPublicApiService(
 
 	s3Client *s3.Client,
 	redisCli *redis.Client,
+	esClient *es.Client,
 ) PublicApiService {
 	srv := &publicApiService{
 		userDao:             userDao,
@@ -155,6 +158,7 @@ func NewPublicApiService(
 
 		s3Client: s3Client,
 		redisCli: redisCli,
+		esClient: esClient,
 	}
 	srv.Session = sess
 	return srv
@@ -2576,29 +2580,68 @@ func (srv *publicApiService) GetDateTimeReport(ctx context.Context, req *view.Ge
 		}
 	}
 
-	// Build query conditions
+	// // Get game info
+	// gameTypeList, err := srv.gameTypeDao.QueryByStatus(srv.DB(), 1)
+	// if err != nil {
+	// 	xlog.Errorf("error to get game type: %v", err)
+	// 	return nil, err
+	// }
+	// gameTypeMap := make(map[int64]string)
+	// for _, gameType := range gameTypeList {
+	// 	gameTypeMap[gameType.Code] = gameType.Cnname
+	// }
+
+	// Try to get data from Elasticsearch first
 	var bet02List []*db.Bet02Extra
-	var gameTypeList []*db.GameType
-	err = srv.Tx(func(tx *gorm.DB) error {
-		bet02List, err = srv.bet02Dao.GetBet02ListForMemberReport(tx, member.ID, avgResp.Agent.ID, req.StartTime, req.EndTime, req.DataType, req.TimeType, req.GameNo1, req.GameNo2)
+	if srv.esClient != nil {
+		// Use ES client to get data
+		results, err := srv.esClient.GetBet02ListForMemberReportEs(ctx, member.ID, avgResp.Agent.ID, req.StartTime, req.EndTime, req.DataType, req.TimeType, req.GameNo1, req.GameNo2)
 		if err != nil {
-			xlog.Errorf("error to get bet02 list: %v", err)
-			return err
+			xlog.Errorf("error to get bet02 list from ES: %v", err)
+			// Fall back to database if ES fails
+		} else {
+			// Convert ES results to Bet02Extra format
+			for _, result := range results {
+				bet02 := &db.Bet02Extra{
+					Bet02: db.Bet02{
+						Bet01:      int64(result["bet01"].(float64)),
+						Bet02:      int(result["bet02"].(float64)),
+						Bet03:      decimal.NewFromFloat(result["bet03"].(float64)),
+						Bet04:      int(result["bet04"].(float64)),
+						Bet05:      int(result["bet05"].(float64)),
+						Bet08:      time.Unix(int64(result["bet08"].(float64)), 0),
+						Bet09:      result["bet09"].(string),
+						Bet12:      decimal.NewFromFloat(result["bet12"].(float64)),
+						Bet13:      decimal.NewFromFloat(result["bet13"].(float64)),
+						Bet14:      decimal.NewFromFloat(result["bet14"].(float64)),
+						Bet16:      decimal.NewFromFloat(result["bet16"].(float64)),
+						Bet17:      decimal.NewFromFloat(result["bet17"].(float64)),
+						Bet38:      result["bet38"].(string),
+						Bet39:      int(result["bet39"].(float64)),
+						Bet41:      decimal.NewFromFloat(result["bet41"].(float64)),
+						IP:         result["ip"].(string),
+						Updatetime: time.Unix(int64(result["updatetime"].(float64)), 0),
+					},
+					Result: result["result"].(string),
+				}
+				bet02List = append(bet02List, bet02)
+			}
 		}
-		// Get game info
-		gameTypeList, err = srv.gameTypeDao.QueryByStatus(srv.DB(), 1)
-		if err != nil {
-			xlog.Errorf("error to get game type: %v", err)
-			return err
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
 	}
-	gameTypeMap := make(map[int64]string)
-	for _, gameType := range gameTypeList {
-		gameTypeMap[gameType.Code] = gameType.Cnname
+
+	// If ES is not available or failed, fall back to database
+	if srv.esClient == nil || len(bet02List) == 0 {
+		err = srv.Tx(func(tx *gorm.DB) error {
+			bet02List, err = srv.bet02Dao.GetBet02ListForMemberReport(tx, member.ID, avgResp.Agent.ID, req.StartTime, req.EndTime, req.DataType, req.TimeType, req.GameNo1, req.GameNo2)
+			if err != nil {
+				xlog.Errorf("error to get bet02 list: %v", err)
+				return err
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Convert to response format
@@ -2606,7 +2649,7 @@ func (srv *publicApiService) GetDateTimeReport(ctx context.Context, req *view.Ge
 	for _, bet := range bet02List {
 		bet02 := bet.Bet02
 		item := &view.DateTimeReportItem{
-			User:       "",
+			User:       bet.User,
 			BetID:      strconv.FormatInt(bet.Bet01, 10),
 			BetTime:    bet02.Bet08.Format("2006-01-02 15:04:05"),
 			BeforeCash: bet02.Bet12,
@@ -2629,12 +2672,7 @@ func (srv *publicApiService) GetDateTimeReport(ctx context.Context, req *view.Ge
 			Settime:    bet02.Updatetime.Format("2006-01-02 15:04:05"),
 			Reset:      bet02.Bet38,
 			GameResult: gameUtil.GetGameResultString(strconv.Itoa(bet02.Bet02), bet.Result),
-		}
-		if gameInfo, ok := gameTypeMap[int64(bet02.Bet02)]; ok {
-			item.GName = gameInfo
-		}
-		if member != nil {
-			item.User = member.User
+			GName:      gameUtil.GetLangText(bet.GName, "cn"),
 		}
 		reportItems = append(reportItems, item)
 	}
