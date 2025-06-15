@@ -23,7 +23,9 @@ type ChangePasswordReq struct {
 	Timestamp int64 `json:"timestamp"`
 	// 0:中文, 1:英文 (非必要)
 	// in:formData
-	Syslang int `json:"syslang"`
+	SyslangStr string `json:"syslang" form:"syslang"`
+	// swagger:ignore
+	Syslang string
 }
 
 // swagger:model
@@ -59,7 +61,9 @@ type EditLimitReq struct {
 	Timestamp int64 `json:"timestamp"`
 	// 0:中文, 1:英文 (非必要)
 	// in:formData
-	Syslang int `json:"syslang"`
+	SyslangStr string `json:"syslang" form:"syslang"`
+	// swagger:ignore
+	Syslang string
 }
 
 // swagger:model
@@ -95,7 +99,9 @@ type LogoutGameReq struct {
 	Timestamp int64 `json:"timestamp" form:"timestamp"`
 	// 0:中文, 1:英文 (非必要)
 	// in:formData
-	Syslang int `json:"syslang" form:"syslang"`
+	SyslangStr string `json:"syslang" form:"syslang"`
+	// swagger:ignore
+	Syslang string
 }
 
 // swagger:model
@@ -119,7 +125,9 @@ type GetBalanceReq struct {
 	Timestamp int64 `json:"timestamp"`
 	// 0:中文, 1:英文 (非必要)
 	// in:formData
-	Syslang int `json:"syslang"`
+	SyslangStr string `json:"syslang" form:"syslang"`
+	// swagger:ignore
+	Syslang string
 }
 
 // swagger:model
@@ -149,7 +157,9 @@ type ChangeBalanceReq struct {
 	Timestamp int64 `json:"timestamp" form:"timestamp"`
 	// 0:中文, 1:英文 (非必要)
 	// in:formData
-	Syslang int `json:"syslang" form:"syslang"`
+	SyslangStr string `json:"syslang" form:"syslang"`
+	// swagger:ignore
+	Syslang string
 }
 
 // swagger:model
@@ -189,7 +199,9 @@ type GetMemberTradeReportReq struct {
 	Timestamp int64 `json:"timestamp" form:"timestamp"`
 	// 0:中文, 1:英文 (非必要)
 	// in:formData
-	Syslang int `json:"syslang" form:"syslang"`
+	SyslangStr string `json:"syslang" form:"syslang"`
+	// swagger:ignore
+	Syslang string
 }
 
 type TradeItem struct {
@@ -229,7 +241,9 @@ type EnableOrDisableMemReq struct {
 	Timestamp int64 `json:"timestamp" form:"timestamp"`
 	// 0:中文, 1:英文 (非必要)
 	// in:formData
-	Syslang int `json:"syslang" form:"syslang"`
+	SyslangStr string `json:"syslang" form:"syslang"`
+	// swagger:ignore
+	Syslang string
 }
 
 // swagger:model
@@ -275,7 +289,9 @@ type GetDateTimeReportReq struct {
 	Timestamp int64 `json:"timestamp" form:"timestamp"`
 	// 0:中文, 1:英文 (非必要)
 	// in:formData
-	Syslang int `json:"syslang" form:"syslang"`
+	SyslangStr string `json:"syslang" form:"syslang"`
+	// swagger:ignore
+	Syslang string
 }
 
 type DateTimeReportItem struct {

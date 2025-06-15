@@ -163,7 +163,9 @@ type GetAgentBalanceReq struct {
 	Timestamp int64 `json:"timestamp"`
 	// 0:中文, 1:英文 (非必要)
 	// in:formData
-	Syslang int `json:"syslang"`
+	SyslangStr string `json:"syslang" form:"syslang"`
+	// swagger:ignore
+	Syslang string
 }
 
 //swagger:model

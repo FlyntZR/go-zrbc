@@ -5,7 +5,56 @@ import (
 	"strings"
 )
 
-// ChipsCheck contains valid chip values
+const (
+	// Language codes mapping
+	LangChinese    = "cn"
+	LangEnglish    = "en"
+	LangThai       = "th"
+	LangVietnamese = "vi"
+	LangJapanese   = "ja"
+	LangKorean     = "ko"
+	LangHindi      = "hi"
+	LangMalay      = "ms"
+	LangIndonesian = "in"
+	LangTaiwan     = "tw"
+	LangSpanish    = "es"
+)
+
+// LanguageMap maps numeric language codes to their corresponding language parameter strings
+var LanguageMap = map[int]string{
+	0:  LangChinese,
+	1:  LangEnglish,
+	2:  LangThai,
+	3:  LangVietnamese,
+	4:  LangJapanese,
+	5:  LangKorean,
+	6:  LangHindi,
+	7:  LangMalay,
+	8:  LangIndonesian,
+	9:  LangTaiwan,
+	10: LangSpanish,
+}
+
+// LanguageMap maps numeric language codes to their corresponding language parameter strings
+var LanguageExtraMap = map[int]string{
+	0:  "&lang=" + LangChinese,
+	1:  "&lang=" + LangEnglish,
+	2:  "&lang=" + LangThai,
+	3:  "&lang=" + LangVietnamese,
+	4:  "&lang=" + LangJapanese,
+	5:  "&lang=" + LangKorean,
+	6:  "&lang=" + LangHindi,
+	7:  "&lang=" + LangMalay,
+	8:  "&lang=" + LangIndonesian,
+	9:  "&lang=" + LangTaiwan,
+	10: "&lang=" + LangSpanish,
+}
+
+var ChipsMap = map[int]string{
+	17: "10000,50000,100000,1000000,5000000",
+	18: "1000,10000,100000,200000,1000000",
+}
+
 var ChipsCheck = []int64{
 	1, 5, 10, 20, 50, 100, 500, 1000, 5000, 10000, 20000, 50000, 100000, 200000, 1000000,
 	5000000, 10000000, 20000000, 50000000, 10000000, 20000000, 50000000, 100000000,
@@ -324,13 +373,13 @@ func GetBetContent(gtype, content, lang string) string {
 }
 
 // GetGameResultString converts game result to readable string
-func GetGameResultString(gtype, result string) string {
+func GetGameResultString(gtype, result, lang string) string {
 	// Handle cancel and shuffle cases
 	if result == "cancel" {
-		return GetLangText("该局取消", "cn")
+		return GetLangText("该局取消", lang)
 	}
 	if result == "0" {
-		return GetLangText("洗牌...", "cn")
+		return GetLangText("洗牌...", lang)
 	}
 
 	// Handle different game types
@@ -356,7 +405,7 @@ func GetGameResultString(gtype, result string) string {
 				cards[i] = GetPokerCardFlower(parseInt(card))
 			}
 		}
-		return GetLangText("庄", "cn") + ":" + cards[0] + cards[1] + cards[2] + " " + GetLangText("闲", "cn") + ":" + cards[3] + cards[4] + cards[5]
+		return GetLangText("庄", lang) + ":" + cards[0] + cards[1] + cards[2] + " " + GetLangText("闲", lang) + ":" + cards[3] + cards[4] + cards[5]
 
 	case "102", "126": // Dragon Tiger
 		if strings.HasPrefix(result, ";") {
@@ -379,7 +428,7 @@ func GetGameResultString(gtype, result string) string {
 				cards[i] = GetPokerCardFlower(parseInt(card))
 			}
 		}
-		return GetLangText("龙", "cn") + ":" + cards[0] + " " + GetLangText("虎", "cn") + ":" + cards[1]
+		return GetLangText("龙", lang) + ":" + cards[0] + " " + GetLangText("虎", lang) + ":" + cards[1]
 
 	case "103": // Roulette
 		return result
@@ -416,10 +465,10 @@ func GetGameResultString(gtype, result string) string {
 			card = append(card, cardRow)
 		}
 
-		return GetLangText("庄", "cn") + ":" + strings.Join(card[0], ",") + " " +
-			GetLangText("闲1", "cn") + ":" + strings.Join(card[1], ",") + " " +
-			GetLangText("闲2", "cn") + ":" + strings.Join(card[2], ",") + " " +
-			GetLangText("闲3", "cn") + ":" + strings.Join(card[3], ",")
+		return GetLangText("庄", lang) + ":" + strings.Join(card[0], ",") + " " +
+			GetLangText("闲1", lang) + ":" + strings.Join(card[1], ",") + " " +
+			GetLangText("闲2", lang) + ":" + strings.Join(card[2], ",") + " " +
+			GetLangText("闲3", lang) + ":" + strings.Join(card[3], ",")
 
 	case "106": // Bull Bull
 		resultary := strings.Split(result, ";")
@@ -450,10 +499,10 @@ func GetGameResultString(gtype, result string) string {
 			card = append(card, cardRow)
 		}
 
-		return GetLangText("庄", "cn") + ":" + card[0][0] + card[0][1] + card[0][2] + " " +
-			GetLangText("闲1", "cn") + ":" + card[1][0] + card[1][1] + card[1][2] + " " +
-			GetLangText("闲2", "cn") + ":" + card[2][0] + card[2][1] + card[2][2] + " " +
-			GetLangText("闲3", "cn") + ":" + card[3][0] + card[3][1] + card[3][2]
+		return GetLangText("庄", lang) + ":" + card[0][0] + card[0][1] + card[0][2] + " " +
+			GetLangText("闲1", lang) + ":" + card[1][0] + card[1][1] + card[1][2] + " " +
+			GetLangText("闲2", lang) + ":" + card[2][0] + card[2][1] + card[2][2] + " " +
+			GetLangText("闲3", lang) + ":" + card[3][0] + card[3][1] + card[3][2]
 
 	case "107": // Mahjong
 		return result
@@ -461,15 +510,15 @@ func GetGameResultString(gtype, result string) string {
 	case "108": // Texas Hold'em
 		switch result {
 		case "0":
-			return GetLangText("四白", "cn")
+			return GetLangText("四白", lang)
 		case "1":
-			return GetLangText("三白一红", "cn")
+			return GetLangText("三白一红", lang)
 		case "2":
-			return GetLangText("二紅二白", "cn")
+			return GetLangText("二紅二白", lang)
 		case "3":
-			return GetLangText("三红一白", "cn")
+			return GetLangText("三红一白", lang)
 		case "4":
-			return GetLangText("四红", "cn")
+			return GetLangText("四红", lang)
 		default:
 			return result
 		}
@@ -498,7 +547,7 @@ func GetGameResultString(gtype, result string) string {
 				cards[i] = GetPokerCardFlower(parseInt(card))
 			}
 		}
-		return GetLangText("龙", "cn") + ":" + cards[0] + cards[1] + cards[2] + "  " + GetLangText("凤", "cn") + ":" + cards[3] + cards[4] + cards[5]
+		return GetLangText("龙", lang) + ":" + cards[0] + cards[1] + cards[2] + "  " + GetLangText("凤", lang) + ":" + cards[3] + cards[4] + cards[5]
 
 	case "112": // Blackjack
 		resultary := strings.Split(result, ";")
@@ -529,23 +578,23 @@ func GetGameResultString(gtype, result string) string {
 			card = append(card, cardRow)
 		}
 
-		return GetLangText("庄", "cn") + ":" + card[0][0] + card[0][1] + "," + " " +
-			GetLangText("闲1", "cn") + ":" + card[1][0] + card[1][1] + "," + " " +
-			GetLangText("闲2", "cn") + ":" + card[2][0] + card[2][1] + "," + " " +
-			GetLangText("闲3", "cn") + ":" + card[3][0] + card[3][1]
+		return GetLangText("庄", lang) + ":" + card[0][0] + card[0][1] + "," + " " +
+			GetLangText("闲1", lang) + ":" + card[1][0] + card[1][1] + "," + " " +
+			GetLangText("闲2", lang) + ":" + card[2][0] + card[2][1] + "," + " " +
+			GetLangText("闲3", lang) + ":" + card[3][0] + card[3][1]
 
 	case "113": // Baccarat Squeeze
 		cards := map[string]string{
-			"101": GetLangText("1筒", "cn"),
-			"102": GetLangText("2筒", "cn"),
-			"103": GetLangText("3筒", "cn"),
-			"104": GetLangText("4筒", "cn"),
-			"105": GetLangText("5筒", "cn"),
-			"106": GetLangText("6筒", "cn"),
-			"107": GetLangText("7筒", "cn"),
-			"108": GetLangText("8筒", "cn"),
-			"109": GetLangText("9筒", "cn"),
-			"137": GetLangText("白板", "cn"),
+			"101": GetLangText("1筒", lang),
+			"102": GetLangText("2筒", lang),
+			"103": GetLangText("3筒", lang),
+			"104": GetLangText("4筒", lang),
+			"105": GetLangText("5筒", lang),
+			"106": GetLangText("6筒", lang),
+			"107": GetLangText("7筒", lang),
+			"108": GetLangText("8筒", lang),
+			"109": GetLangText("9筒", lang),
+			"137": GetLangText("白板", lang),
 		}
 
 		var tmp []string
@@ -559,13 +608,13 @@ func GetGameResultString(gtype, result string) string {
 				str := ""
 				switch carset[0] {
 				case "b":
-					str += GetLangText("庄", "cn")
+					str += GetLangText("庄", lang)
 				case "p1":
-					str += GetLangText("闲1", "cn")
+					str += GetLangText("闲1", lang)
 				case "p2":
-					str += GetLangText("闲2", "cn")
+					str += GetLangText("闲2", lang)
 				case "p3":
-					str += GetLangText("闲3", "cn")
+					str += GetLangText("闲3", lang)
 				}
 				str += ":"
 				flowers := strings.Split(carset[1], ",")
@@ -600,8 +649,8 @@ func GetGameResultString(gtype, result string) string {
 				cards[i] = GetPokerCardFlower(parseInt(card))
 			}
 		}
-		return GetLangText("庄", "cn") + ":" + strings.Join(cards[0:5], ",") + " " +
-			GetLangText("闲", "cn") + ":" + strings.Join(cards[5:10], ",")
+		return GetLangText("庄", lang) + ":" + strings.Join(cards[0:5], ",") + " " +
+			GetLangText("闲", lang) + ":" + strings.Join(cards[5:10], ",")
 
 	case "121": // Baccarat Squeeze
 		if strings.HasPrefix(result, ";") {
@@ -624,8 +673,8 @@ func GetGameResultString(gtype, result string) string {
 				cards[i] = GetPokerCardFlower(parseInt(card))
 			}
 		}
-		return GetLangText("庄", "cn") + ":" + strings.Join(cards[0:3], ",") + " " +
-			GetLangText("闲", "cn") + ":" + strings.Join(cards[3:6], ",")
+		return GetLangText("庄", lang) + ":" + strings.Join(cards[0:3], ",") + " " +
+			GetLangText("闲", lang) + ":" + strings.Join(cards[3:6], ",")
 	}
 
 	return result

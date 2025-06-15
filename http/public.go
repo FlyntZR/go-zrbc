@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"errors"
+	"go-zrbc/pkg/gameUtil"
 	"go-zrbc/pkg/http/middleware"
 	commonresp "go-zrbc/pkg/http/response"
 	"go-zrbc/pkg/utils"
@@ -168,7 +169,11 @@ func (h *PublicApiHandler) SigninGame(c *gin.Context) {
 		xlog.Warnf("syslang is not a number, use default value 0")
 		syslang = 0
 	}
-	req.Syslang = syslang
+	if tmpLang, ok := gameUtil.LanguageMap[syslang]; ok {
+		req.Syslang = tmpLang
+	} else {
+		req.Syslang = "cn"
+	}
 
 	xlog.Debugf("SigninGame req: %+v", &req)
 	resp, err := h.srv.SigninGame(c, &req)
@@ -235,7 +240,11 @@ func (h *PublicApiHandler) MemberRegister(c *gin.Context) {
 		xlog.Warnf("syslang is not a number, use default value 0")
 		syslang = 0
 	}
-	req.Syslang = syslang
+	if tmpLang, ok := gameUtil.LanguageMap[syslang]; ok {
+		req.Syslang = tmpLang
+	} else {
+		req.Syslang = "cn"
+	}
 
 	xlog.Debugf("MemberRegister req: %+v", &req)
 	resp, err := h.srv.MemberRegister(c, &req)
@@ -295,7 +304,11 @@ func (h *PublicApiHandler) EditLimit(c *gin.Context) {
 		xlog.Warnf("syslang is not a number, use default value 0")
 		syslang = 0
 	}
-	req.Syslang = syslang
+	if tmpLang, ok := gameUtil.LanguageMap[syslang]; ok {
+		req.Syslang = tmpLang
+	} else {
+		req.Syslang = "cn"
+	}
 
 	xlog.Debugf("EditLimit req: %+v", &req)
 	resp, err := h.srv.EditLimit(c, &req)
@@ -332,7 +345,11 @@ func (h *PublicApiHandler) LogoutGame(c *gin.Context) {
 		xlog.Warnf("syslang is not a number, use default value 0")
 		syslang = 0
 	}
-	req.Syslang = syslang
+	if tmpLang, ok := gameUtil.LanguageMap[syslang]; ok {
+		req.Syslang = tmpLang
+	} else {
+		req.Syslang = "cn"
+	}
 
 	xlog.Debugf("LogoutGame req: %+v", &req)
 	resp, err := h.srv.LogoutGame(c, &req)
@@ -370,7 +387,11 @@ func (h *PublicApiHandler) ChangePassword(c *gin.Context) {
 		xlog.Warnf("syslang is not a number, use default value 0")
 		syslang = 0
 	}
-	req.Syslang = syslang
+	if tmpLang, ok := gameUtil.LanguageMap[syslang]; ok {
+		req.Syslang = tmpLang
+	} else {
+		req.Syslang = "cn"
+	}
 
 	xlog.Debugf("ChangePassword req: %+v", &req)
 	resp, err := h.srv.ChangePassword(c, &req)
@@ -406,7 +427,11 @@ func (h *PublicApiHandler) GetAgentBalance(c *gin.Context) {
 		xlog.Warnf("syslang is not a number, use default value 0")
 		syslang = 0
 	}
-	req.Syslang = syslang
+	if tmpLang, ok := gameUtil.LanguageMap[syslang]; ok {
+		req.Syslang = tmpLang
+	} else {
+		req.Syslang = "cn"
+	}
 
 	xlog.Debugf("GetAgentBalance req: %+v", &req)
 	resp, err := h.srv.GetAgentBalance(c, &req)
@@ -443,7 +468,11 @@ func (h *PublicApiHandler) GetBalance(c *gin.Context) {
 		xlog.Warnf("syslang is not a number, use default value 0")
 		syslang = 0
 	}
-	req.Syslang = syslang
+	if tmpLang, ok := gameUtil.LanguageMap[syslang]; ok {
+		req.Syslang = tmpLang
+	} else {
+		req.Syslang = "cn"
+	}
 
 	xlog.Debugf("GetBalance req: %+v", &req)
 	resp, err := h.srv.GetBalance(c, &req)
@@ -482,7 +511,11 @@ func (h *PublicApiHandler) ChangeBalance(c *gin.Context) {
 		xlog.Warnf("syslang is not a number, use default value 0")
 		syslang = 0
 	}
-	req.Syslang = syslang
+	if tmpLang, ok := gameUtil.LanguageMap[syslang]; ok {
+		req.Syslang = tmpLang
+	} else {
+		req.Syslang = "cn"
+	}
 
 	xlog.Debugf("ChangeBalance req: %+v", &req)
 	resp, err := h.srv.ChangeBalance(c, &req)
@@ -548,7 +581,11 @@ func (h *PublicApiHandler) GetMemberTradeReport(c *gin.Context) {
 		xlog.Warnf("syslang is not a number, use default value 0")
 		syslang = 0
 	}
-	req.Syslang = syslang
+	if tmpLang, ok := gameUtil.LanguageMap[syslang]; ok {
+		req.Syslang = tmpLang
+	} else {
+		req.Syslang = "cn"
+	}
 
 	xlog.Debugf("GetMemberTradeReport req: %+v", &req)
 	resp, err := h.srv.GetMemberTradeReport(c, &req)
@@ -587,7 +624,11 @@ func (h *PublicApiHandler) EnableOrDisableMem(c *gin.Context) {
 		xlog.Warnf("syslang is not a number, use default value 0")
 		syslang = 0
 	}
-	req.Syslang = syslang
+	if tmpLang, ok := gameUtil.LanguageMap[syslang]; ok {
+		req.Syslang = tmpLang
+	} else {
+		req.Syslang = "cn"
+	}
 
 	xlog.Debugf("EnableOrDisableMem req: %+v", &req)
 	resp, err := h.srv.EnableOrDisableMem(c, &req)
@@ -664,7 +705,11 @@ func (h *PublicApiHandler) GetDateTimeReport(c *gin.Context) {
 		xlog.Warnf("syslang is not a number, use default value 0")
 		syslang = 0
 	}
-	req.Syslang = syslang
+	if tmpLang, ok := gameUtil.LanguageMap[syslang]; ok {
+		req.Syslang = tmpLang
+	} else {
+		req.Syslang = "cn"
+	}
 
 	xlog.Debugf("GetDateTimeReport req: %+v", &req)
 	resp, err := h.srv.GetDateTimeReport(c, &req)

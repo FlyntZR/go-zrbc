@@ -27,45 +27,6 @@ import (
 	"gorm.io/gorm"
 )
 
-const (
-	TokenPrefix = "zrys:access_token"
-
-	// Language codes mapping
-	LangChinese    = "cn"
-	LangEnglish    = "en"
-	LangThai       = "th"
-	LangVietnamese = "vi"
-	LangJapanese   = "ja"
-	LangKorean     = "ko"
-	LangHindi      = "hi"
-	LangMalay      = "ms"
-	LangIndonesian = "in"
-	LangTaiwan     = "tw"
-	LangSpanish    = "es"
-)
-
-// LanguageMap maps numeric language codes to their corresponding language parameter strings
-var LanguageMap = map[int]string{
-	0:  "&lang=" + LangChinese,
-	1:  "&lang=" + LangEnglish,
-	2:  "&lang=" + LangThai,
-	3:  "&lang=" + LangVietnamese,
-	4:  "&lang=" + LangJapanese,
-	5:  "&lang=" + LangKorean,
-	6:  "&lang=" + LangHindi,
-	7:  "&lang=" + LangMalay,
-	8:  "&lang=" + LangIndonesian,
-	9:  "&lang=" + LangTaiwan,
-	10: "&lang=" + LangSpanish,
-}
-
-var ChipsMap = map[int]string{
-	17: "10000,50000,100000,1000000,5000000",
-	18: "1000,10000,100000,200000,1000000",
-}
-
-var ChipsCheck = []int{1, 5, 10, 20, 50, 100, 500, 1000, 5000, 10000, 20000, 50000, 100000, 200000, 1000000, 5000000, 10000000, 20000000, 50000000, 10000000, 20000000, 50000000, 100000000}
-
 type PublicApiService interface {
 	//用户信息
 	GetUserInfo(ctx context.Context, userID int64) (*view.GetUserInfoResp, error)
@@ -453,29 +414,29 @@ func (srv *publicApiService) SigninGame(ctx context.Context, req *view.SigninGam
 		if req.Mode != "" {
 			if len(ui) != 0 {
 				if avResp.Agent.VendorID == "bbinapi" || avResp.Agent.VendorID == "bbtest" || avResp.Agent.VendorID == "bbintwapi" {
-					gameURL = fmt.Sprintf("%s?#sid=ANONYMOUS%s%s&ui=%s%s", baseURL, modeParam, muteParam, ui, LanguageMap[langInt])
+					gameURL = fmt.Sprintf("%s?#sid=ANONYMOUS%s%s&ui=%s%s", baseURL, modeParam, muteParam, ui, gameUtil.LanguageExtraMap[langInt])
 				} else {
-					gameURL = fmt.Sprintf("%s?sid=ANONYMOUS%s%s&ui=%s%s", baseURL, modeParam, muteParam, ui, LanguageMap[langInt])
+					gameURL = fmt.Sprintf("%s?sid=ANONYMOUS%s%s&ui=%s%s", baseURL, modeParam, muteParam, ui, gameUtil.LanguageExtraMap[langInt])
 				}
 			} else {
 				if avResp.Agent.VendorID == "bbinapi" || avResp.Agent.VendorID == "bbtest" || avResp.Agent.VendorID == "bbintwapi" {
-					gameURL = fmt.Sprintf("%s?#sid=ANONYMOUS%s%s%s", baseURL, modeParam, muteParam, LanguageMap[langInt])
+					gameURL = fmt.Sprintf("%s?#sid=ANONYMOUS%s%s%s", baseURL, modeParam, muteParam, gameUtil.LanguageExtraMap[langInt])
 				} else {
-					gameURL = fmt.Sprintf("%s?sid=ANONYMOUS%s%s%s", baseURL, modeParam, muteParam, LanguageMap[langInt])
+					gameURL = fmt.Sprintf("%s?sid=ANONYMOUS%s%s%s", baseURL, modeParam, muteParam, gameUtil.LanguageExtraMap[langInt])
 				}
 			}
 		} else {
 			if len(ui) != 0 {
 				if avResp.Agent.VendorID == "bbinapi" || avResp.Agent.VendorID == "bbtest" || avResp.Agent.VendorID == "bbintwapi" {
-					gameURL = fmt.Sprintf("%s?#sid=ANONYMOUS&ui=%s%s%s", baseURL, muteParam, ui, LanguageMap[langInt])
+					gameURL = fmt.Sprintf("%s?#sid=ANONYMOUS&ui=%s%s%s", baseURL, muteParam, ui, gameUtil.LanguageExtraMap[langInt])
 				} else {
-					gameURL = fmt.Sprintf("%s?sid=ANONYMOUS&ui=%s%s%s", baseURL, muteParam, ui, LanguageMap[langInt])
+					gameURL = fmt.Sprintf("%s?sid=ANONYMOUS&ui=%s%s%s", baseURL, muteParam, ui, gameUtil.LanguageExtraMap[langInt])
 				}
 			} else {
 				if avResp.Agent.VendorID == "bbinapi" || avResp.Agent.VendorID == "bbtest" || avResp.Agent.VendorID == "bbintwapi" {
-					gameURL = fmt.Sprintf("%s?#sid=ANONYMOUS%s%s", baseURL, muteParam, LanguageMap[langInt])
+					gameURL = fmt.Sprintf("%s?#sid=ANONYMOUS%s%s", baseURL, muteParam, gameUtil.LanguageExtraMap[langInt])
 				} else {
-					gameURL = fmt.Sprintf("%s?sid=ANONYMOUS%s%s", baseURL, muteParam, LanguageMap[langInt])
+					gameURL = fmt.Sprintf("%s?sid=ANONYMOUS%s%s", baseURL, muteParam, gameUtil.LanguageExtraMap[langInt])
 				}
 			}
 		}
@@ -539,42 +500,42 @@ func (srv *publicApiService) SigninGame(ctx context.Context, req *view.SigninGam
 
 		if len(ui) != 0 && req.Mode != "" {
 			if avResp.Agent.VendorID == "bbinapi" || avResp.Agent.VendorID == "bbtest" || avResp.Agent.VendorID == "bbintwapi" {
-				gameURL = fmt.Sprintf("%s?#sid=%s%s%s&ui=%s%s", baseURL, memLoginSID, modeParam, muteParam, ui, LanguageMap[langInt])
+				gameURL = fmt.Sprintf("%s?#sid=%s%s%s&ui=%s%s", baseURL, memLoginSID, modeParam, muteParam, ui, gameUtil.LanguageExtraMap[langInt])
 			} else {
-				gameURL = fmt.Sprintf("%s?sid=%s%s%s&ui=%s%s", baseURL, memLoginSID, modeParam, muteParam, ui, LanguageMap[langInt])
+				gameURL = fmt.Sprintf("%s?sid=%s%s%s&ui=%s%s", baseURL, memLoginSID, modeParam, muteParam, ui, gameUtil.LanguageExtraMap[langInt])
 			}
 		} else if len(ui) != 0 && req.Mode == "" {
 			if avResp.Agent.VendorID == "bbinapi" || avResp.Agent.VendorID == "bbtest" || avResp.Agent.VendorID == "bbintwapi" {
-				gameURL = fmt.Sprintf("%s?#sid=%s%s&ui=%s%s", baseURL, memLoginSID, muteParam, ui, LanguageMap[langInt])
+				gameURL = fmt.Sprintf("%s?#sid=%s%s&ui=%s%s", baseURL, memLoginSID, muteParam, ui, gameUtil.LanguageExtraMap[langInt])
 			} else {
-				gameURL = fmt.Sprintf("%s?sid=%s%s&ui=%s%s", baseURL, memLoginSID, muteParam, ui, LanguageMap[langInt])
+				gameURL = fmt.Sprintf("%s?sid=%s%s&ui=%s%s", baseURL, memLoginSID, muteParam, ui, gameUtil.LanguageExtraMap[langInt])
 			}
 		} else if req.Mode != "" {
 			if avResp.Agent.VendorID == "bbinapi" || avResp.Agent.VendorID == "bbtest" || avResp.Agent.VendorID == "bbintwapi" {
-				gameURL = fmt.Sprintf("%s?#sid=%s%s%s%s", baseURL, memLoginSID, modeParam, muteParam, LanguageMap[langInt])
+				gameURL = fmt.Sprintf("%s?#sid=%s%s%s%s", baseURL, memLoginSID, modeParam, muteParam, gameUtil.LanguageExtraMap[langInt])
 			} else {
-				gameURL = fmt.Sprintf("%s?sid=%s%s%s%s", baseURL, memLoginSID, modeParam, muteParam, LanguageMap[langInt])
+				gameURL = fmt.Sprintf("%s?sid=%s%s%s%s", baseURL, memLoginSID, modeParam, muteParam, gameUtil.LanguageExtraMap[langInt])
 			}
 		} else {
 			if avResp.Agent.VendorID == "bbinapi" || avResp.Agent.VendorID == "bbtest" || avResp.Agent.VendorID == "bbintwapi" {
-				gameURL = fmt.Sprintf("%s?#sid=%s%s%s", baseURL, memLoginSID, muteParam, LanguageMap[langInt])
+				gameURL = fmt.Sprintf("%s?#sid=%s%s%s", baseURL, memLoginSID, muteParam, gameUtil.LanguageExtraMap[langInt])
 			} else {
-				gameURL = fmt.Sprintf("%s?sid=%s%s%s", baseURL, memLoginSID, muteParam, LanguageMap[langInt])
+				gameURL = fmt.Sprintf("%s?sid=%s%s%s", baseURL, memLoginSID, muteParam, gameUtil.LanguageExtraMap[langInt])
 			}
 		}
 	} else {
 		xlog.Debug("newMemLogin is nil")
 		if req.Mode != "" {
 			if avResp.Agent.VendorID == "bbinapi" || avResp.Agent.VendorID == "bbtest" || avResp.Agent.VendorID == "bbintwapi" {
-				gameURL = fmt.Sprintf("%s?#sid=%s%s%s%s", baseURL, sid, modeParam, muteParam, LanguageMap[langInt])
+				gameURL = fmt.Sprintf("%s?#sid=%s%s%s%s", baseURL, sid, modeParam, muteParam, gameUtil.LanguageExtraMap[langInt])
 			} else {
-				gameURL = fmt.Sprintf("%s?sid=%s%s%s%s", baseURL, sid, modeParam, muteParam, LanguageMap[langInt])
+				gameURL = fmt.Sprintf("%s?sid=%s%s%s%s", baseURL, sid, modeParam, muteParam, gameUtil.LanguageExtraMap[langInt])
 			}
 		} else {
 			if avResp.Agent.VendorID == "bbinapi" || avResp.Agent.VendorID == "bbtest" || avResp.Agent.VendorID == "bbintwapi" {
-				gameURL = fmt.Sprintf("%s?#sid=%s%s%s", baseURL, sid, muteParam, LanguageMap[langInt])
+				gameURL = fmt.Sprintf("%s?#sid=%s%s%s", baseURL, sid, muteParam, gameUtil.LanguageExtraMap[langInt])
 			} else {
-				gameURL = fmt.Sprintf("%s?sid=%s%s%s", baseURL, sid, muteParam, LanguageMap[langInt])
+				gameURL = fmt.Sprintf("%s?sid=%s%s%s", baseURL, sid, muteParam, gameUtil.LanguageExtraMap[langInt])
 			}
 		}
 	}
@@ -712,7 +673,7 @@ func validateChips(chips string) (string, error) {
 		if err != nil {
 			return "", utils.ErrInvalidChipsFormat
 		}
-		if !slices.Contains(ChipsCheck, chipInt) {
+		if !slices.Contains(gameUtil.ChipsCheck, chipInt) {
 			return "", utils.ErrInvalidChipsType
 		}
 		chipMap[chip] = true
@@ -854,7 +815,7 @@ func (srv *publicApiService) MemberRegister(ctx context.Context, req *view.Membe
 	// Set chips
 	chipsStr := ""
 	if avResp.Agent.Currency == 17 || avResp.Agent.Currency == 18 {
-		chipsStr = ChipsMap[avResp.Agent.Currency]
+		chipsStr = gameUtil.ChipsMap[avResp.Agent.Currency]
 	} else if req.Chips != "" {
 		// Validate custom chips
 		chipsStr, err = validateChips(req.Chips)
@@ -1702,9 +1663,9 @@ func (srv *publicApiService) ChangePassword(ctx context.Context, req *view.Chang
 	// Get language-specific response
 	var result string
 	switch req.Syslang {
-	case 0:
+	case "cn":
 		result = fmt.Sprintf("密码:%s,修改完成", req.NewPassword)
-	case 1:
+	case "en":
 		result = fmt.Sprintf("Password:%s,Change completed", req.NewPassword)
 	default:
 		result = fmt.Sprintf("密码:%s,修改完成", req.NewPassword)
@@ -1916,7 +1877,7 @@ func (srv *publicApiService) ChangeBalance(ctx context.Context, req *view.Change
 	// Get language-specific response
 	var result string
 	switch req.Syslang {
-	case 1:
+	case "cn":
 		result = fmt.Sprintf("Balance change completed, amount: %s", req.Money)
 	default:
 		result = fmt.Sprintf("余额变更完成，金额: %s", req.Money)
@@ -2357,13 +2318,13 @@ func (srv *publicApiService) EnableOrDisableMem(ctx context.Context, req *view.E
 	// Get status text based on language
 	var statusText string
 	if req.Status == "Y" {
-		if req.Syslang == 1 {
+		if req.Syslang == "cn" {
 			statusText = "enabled"
 		} else {
 			statusText = "已启用"
 		}
 	} else {
-		if req.Syslang == 1 {
+		if req.Syslang == "cn" {
 			statusText = "disabled"
 		} else {
 			statusText = "已停用"
@@ -2397,7 +2358,7 @@ func (srv *publicApiService) EnableOrDisableMem(ctx context.Context, req *view.E
 
 	// Generate response message based on language
 	var memberText, result string
-	if req.Syslang == 1 {
+	if req.Syslang == "cn" {
 		memberText = "Member"
 		result = fmt.Sprintf("%s:%s %s %s", memberText, strings.Join(users, ","), statusText, actionType)
 	} else {
@@ -2658,7 +2619,7 @@ func (srv *publicApiService) GetDateTimeReport(ctx context.Context, req *view.Ge
 			Water:      bet02.Bet16,
 			Result:     bet02.Bet17,
 			BetCode:    bet02.Bet09,
-			BetResult:  gameUtil.GetBetContent(strconv.Itoa(bet02.Bet02), bet02.Bet09, "cn"),
+			BetResult:  gameUtil.GetBetContent(strconv.Itoa(bet02.Bet02), bet02.Bet09, req.Syslang),
 			WaterBet:   bet02.Bet41,
 			WinLoss:    bet02.Bet14.Sub(bet02.Bet13),
 			IP:         bet02.IP,
@@ -2671,8 +2632,8 @@ func (srv *publicApiService) GetDateTimeReport(ctx context.Context, req *view.Ge
 			Commission: decimal.NewFromInt(int64(bet02.Commission)),
 			Settime:    bet02.Updatetime.Format("2006-01-02 15:04:05"),
 			Reset:      bet02.Bet38,
-			GameResult: gameUtil.GetGameResultString(strconv.Itoa(bet02.Bet02), bet.Result),
-			GName:      gameUtil.GetLangText(bet.GName, "cn"),
+			GameResult: gameUtil.GetGameResultString(strconv.Itoa(bet02.Bet02), bet.Result, req.Syslang),
+			GName:      gameUtil.GetLangText(bet.GName, req.Syslang),
 		}
 		reportItems = append(reportItems, item)
 	}

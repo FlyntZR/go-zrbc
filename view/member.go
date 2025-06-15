@@ -194,7 +194,9 @@ type SigninGameReq struct {
 	Video string `form:"video" json:"video"`
 	// 0:中文, 1:英文 (非必要)
 	// in:formData
-	Syslang int `form:"video" json:"syslang"`
+	SyslangStr string `form:"syslang" json:"syslang"`
+	// swagger:ignore
+	Syslang string
 	// 籌碼選擇
 	Chips string `form:"chips" json:"chip"`
 	// 时间戳
@@ -261,7 +263,9 @@ type MemberRegisterReq struct {
 	Timestamp int64 `json:"timestamp"`
 	// 0:中文, 1:英文 (非必要)
 	// in:formData
-	Syslang int `json:"syslang"`
+	SyslangStr string `json:"syslang" form:"syslang"`
+	// swagger:ignore
+	Syslang string
 }
 
 // swagger:model

@@ -14,7 +14,6 @@ import (
 	"go-zrbc/config"
 	"go-zrbc/pkg/token"
 	"go-zrbc/pkg/xlog"
-	service "go-zrbc/service/public"
 
 	commonresp "go-zrbc/pkg/http/response"
 
@@ -23,6 +22,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+)
+
+const (
+	TokenPrefix = "zrys:access_token"
 )
 
 type MiddlewareHandler struct {
@@ -237,7 +240,7 @@ func (md *MiddlewareHandler) Oauth(c *gin.Context) {
 		commonresp.AbortResp(c, http.StatusUnauthorized)
 		return
 	}
-	tUser, err := token.GetToken(md.redisCli, service.TokenPrefix, accessToken)
+	tUser, err := token.GetToken(md.redisCli, TokenPrefix, accessToken)
 	if err == nil {
 		commonresp.AbortResp(c, http.StatusNotFound)
 		return
