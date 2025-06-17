@@ -1,6 +1,7 @@
 package gameUtil
 
 import (
+	"go-zrbc/pkg/xlog"
 	"strconv"
 	"strings"
 )
@@ -374,6 +375,7 @@ func GetBetContent(gtype, content, lang string) string {
 
 // GetGameResultString converts game result to readable string
 func GetGameResultString(gtype, result, lang string) string {
+	xlog.Debugf("GetGameResultString gtype:%s result:%s lang:%s", gtype, result, lang)
 	// Handle cancel and shuffle cases
 	if result == "cancel" {
 		return GetLangText("该局取消", lang)

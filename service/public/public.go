@@ -45,6 +45,8 @@ type PublicApiService interface {
 	EnableOrDisableMem(ctx context.Context, req *view.EnableOrDisableMemReq) (*view.EnableOrDisableMemResp, error)
 	GetDateTimeReport(ctx context.Context, req *view.GetDateTimeReportReq) (*view.GetDateTimeReportResp, error)
 	GetTipReport(ctx context.Context, req *view.GetTipReportReq) (*view.GetTipReportResp, error)
+	GetUnsettleReport(ctx context.Context, req *view.GetUnsettleReportReq) (*view.GetUnsettleReportResp, error)
+	GetReportDetail(ctx context.Context, req *view.GetReportDetailReq) (*view.GetReportDetailResp, error)
 }
 
 type MemDtlDao interface {
@@ -72,6 +74,7 @@ type publicApiService struct {
 	logAgeCashChangeDao db.LogAgeCashChangeDao
 	alertMessageDao     db.AlertMessageDao
 	gameInfoDao         db.GameInfoDao
+	bet01Dao            db.Bet01Dao
 
 	s3Client *s3.Client
 	redisCli *redis.Client
@@ -96,6 +99,7 @@ func NewPublicApiService(
 	logAgeCashChangeDao db.LogAgeCashChangeDao,
 	alertMessageDao db.AlertMessageDao,
 	gameInfoDao db.GameInfoDao,
+	bet01Dao db.Bet01Dao,
 
 	s3Client *s3.Client,
 	redisCli *redis.Client,
@@ -117,6 +121,7 @@ func NewPublicApiService(
 		logAgeCashChangeDao: logAgeCashChangeDao,
 		alertMessageDao:     alertMessageDao,
 		gameInfoDao:         gameInfoDao,
+		bet01Dao:            bet01Dao,
 
 		s3Client: s3Client,
 		redisCli: redisCli,
@@ -2393,9 +2398,9 @@ func (srv *publicApiService) GetDateTimeReport(ctx context.Context, req *view.Ge
 	}
 
 	// Get member by account if user is specified
-	var member *db.Member
+	var memberID int64 = 0
 	if req.User != "" {
-		member, err = srv.userDao.QueryByAccount(srv.DB(), req.User)
+		member, err := srv.userDao.QueryByAccount(srv.DB(), req.User)
 		if err != nil {
 			if err == gorm.ErrRecordNotFound {
 				return nil, utils.ErrParamInvalidAccountNotExist
@@ -2407,6 +2412,7 @@ func (srv *publicApiService) GetDateTimeReport(ctx context.Context, req *view.Ge
 			xlog.Errorf("error to verify member belongs to agent, err:%+v", utils.ErrParamInvalidAccountNotBelongToAgent)
 			return nil, utils.ErrParamInvalidAccountNotBelongToAgent
 		}
+		memberID = member.ID
 	}
 
 	// Validate time range
@@ -2563,7 +2569,7 @@ func (srv *publicApiService) GetDateTimeReport(ctx context.Context, req *view.Ge
 	var bet02List []*db.Bet02Extra
 	if srv.esClient != nil {
 		// Use ES client to get data
-		results, err := srv.esClient.GetBet02ListForDateTimeReportEs(ctx, member.ID, avgResp.Agent.ID, req.StartTime, req.EndTime, req.DataType, req.TimeType, req.GameNo1, req.GameNo2)
+		results, err := srv.esClient.GetBet02ListForDateTimeReportEs(ctx, memberID, avgResp.Agent.ID, req.StartTime, req.EndTime, req.DataType, req.TimeType, req.GameNo1, req.GameNo2)
 		if err != nil {
 			xlog.Errorf("error to get bet02 list from ES: %v", err)
 		} else {
@@ -2599,7 +2605,7 @@ func (srv *publicApiService) GetDateTimeReport(ctx context.Context, req *view.Ge
 	// If ES is not available or failed, fall back to database
 	if srv.esClient == nil || len(bet02List) == 0 {
 		err = srv.Tx(func(tx *gorm.DB) error {
-			bet02List, err = srv.bet02Dao.GetBet02ListForDateTimeReport(tx, member.ID, avgResp.Agent.ID, req.StartTime, req.EndTime, req.DataType, req.TimeType, req.GameNo1, req.GameNo2)
+			bet02List, err = srv.bet02Dao.GetBet02ListForDateTimeReport(tx, memberID, avgResp.Agent.ID, req.StartTime, req.EndTime, req.DataType, req.TimeType, req.GameNo1, req.GameNo2)
 			if err != nil {
 				xlog.Errorf("error to get bet02 list: %v", err)
 				return err
@@ -2664,9 +2670,9 @@ func (srv *publicApiService) GetTipReport(ctx context.Context, req *view.GetTipR
 	}
 
 	// Get member by account if user is specified
-	var member *db.Member
+	var memberID int64 = 0
 	if req.User != "" {
-		member, err = srv.userDao.QueryByAccount(srv.DB(), req.User)
+		member, err := srv.userDao.QueryByAccount(srv.DB(), req.User)
 		if err != nil {
 			if err == gorm.ErrRecordNotFound {
 				return nil, utils.ErrParamInvalidAccountNotExist
@@ -2678,6 +2684,7 @@ func (srv *publicApiService) GetTipReport(ctx context.Context, req *view.GetTipR
 			xlog.Errorf("error to verify member belongs to agent, err:%+v", utils.ErrParamInvalidAccountNotBelongToAgent)
 			return nil, utils.ErrParamInvalidAccountNotBelongToAgent
 		}
+		memberID = member.ID
 	}
 
 	// Validate time range
@@ -2741,7 +2748,7 @@ func (srv *publicApiService) GetTipReport(ctx context.Context, req *view.GetTipR
 	var bet02List []*db.Bet02Extra
 	if srv.esClient != nil {
 		// Use ES client to get data
-		results, err := srv.esClient.GetBet02ListForDateTimeReportEs(ctx, member.ID, avgResp.Agent.ID, req.StartTime, req.EndTime, 1, 0, "", "")
+		results, err := srv.esClient.GetBet02ListForDateTimeReportEs(ctx, memberID, avgResp.Agent.ID, req.StartTime, req.EndTime, 1, 0, "", "")
 		if err != nil {
 			xlog.Errorf("error to get bet02 list from ES: %v", err)
 		} else {
@@ -2777,7 +2784,7 @@ func (srv *publicApiService) GetTipReport(ctx context.Context, req *view.GetTipR
 	// If ES is not available or failed, fall back to database
 	if srv.esClient == nil || len(bet02List) == 0 {
 		err = srv.Tx(func(tx *gorm.DB) error {
-			bet02List, err = srv.bet02Dao.GetBet02ListForTipReport(tx, member.ID, avgResp.Agent.ID, req.StartTime, req.EndTime, 1, 0, "", "")
+			bet02List, err = srv.bet02Dao.GetBet02ListForTipReport(tx, memberID, avgResp.Agent.ID, req.StartTime, req.EndTime, 1, 0, "", "")
 			if err != nil {
 				xlog.Errorf("error to get bet02 list: %v", err)
 				return err
@@ -2816,4 +2823,249 @@ func (srv *publicApiService) GetTipReport(ctx context.Context, req *view.GetTipR
 	return &view.GetTipReportResp{
 		Result: reportItems,
 	}, nil
+}
+
+func (srv *publicApiService) GetUnsettleReport(ctx context.Context, req *view.GetUnsettleReportReq) (*view.GetUnsettleReportResp, error) {
+	// Validate timestamp
+	if err := utils.CheckTimestamp(req.Timestamp); err != nil {
+		xlog.Errorf("error to check timestamp, err:%+v", err)
+		return nil, err
+	}
+
+	// Verify agent
+	_, err := srv.AgentVerify(ctx, &view.AgentVerifyReq{VendorID: req.VendorID, Signature: req.Signature})
+	if err != nil {
+		xlog.Errorf("error to verify agent, err:%+v", err)
+		return nil, err
+	}
+
+	// Validate time
+	if req.Time == "" {
+		return nil, utils.ErrCommandSuccessButNoData
+	}
+
+	// Parse time
+	timeObj, err := time.Parse("2006-01-02", req.Time)
+	if err != nil {
+		xlog.Errorf("error to parse time, err:%+v", err)
+		return nil, utils.ErrCommandSuccessButNoData
+	}
+
+	// Check if time is within 3 days
+	now := time.Now()
+	if now.Sub(timeObj) > 72*time.Hour {
+		return nil, utils.ErrCommandSuccessButNoData
+	}
+
+	// Get report key
+	GetUnsettleReportChkTime := "GetUnsettleReport_chkTime"
+	vid := req.VendorID
+
+	// Get last check time from Redis
+	chkt, err := srv.redisCli.HGet(ctx, GetUnsettleReportChkTime, vid).Result()
+	if err != nil && err != redis.Nil {
+		xlog.Errorf("error to get chkTime from Redis: %v", err)
+		return nil, utils.ErrRedisError
+	}
+
+	// Check for duplicate requests
+	chkTime := time.Now().Unix()
+	if chkt != "" {
+		lastChkTime, err := strconv.ParseInt(chkt, 10, 64)
+		if err != nil {
+			xlog.Errorf("error to parse chkTime: %v", err)
+			return nil, utils.ErrRedisError
+		}
+		timeDiff := chkTime - lastChkTime
+		if timeDiff < 30 {
+			return nil, utils.ErrInvalidTransactionTimeout
+		}
+	}
+
+	// Get unsettled bets
+	var bet01List []*db.Bet01Summary
+	err = srv.Tx(func(tx *gorm.DB) error {
+		bet01List, err = srv.bet01Dao.GetBet01ListForUnsettledReport(tx, timeObj)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert to response format
+	var reportItems []*view.UnsettleReportItem
+	for _, bet := range bet01List {
+		xlog.Infof("bet: %v", bet)
+		item := &view.UnsettleReportItem{
+			BetID:      strconv.FormatInt(bet.BetID, 10),
+			ID:         int64(bet.ID),
+			GID:        strconv.Itoa(bet.GID),
+			Event:      bet.Event.String(),
+			EventChild: strconv.Itoa(bet.EventChild),
+			TableID:    strconv.Itoa(bet.TableID),
+			BetTime:    bet.BetTime.Format("2006-01-02 15:04:05"),
+			Bet:        bet.Bet,
+			BetResult:  gameUtil.GetBetContent(strconv.Itoa(bet.GID), bet.BetResult, req.Syslang),
+			Round:      bet.Round.String(),
+			Subround:   strconv.Itoa(bet.SubRound),
+			Commission: decimal.NewFromInt(int64(bet.Commission)),
+			User:       bet.User,
+			GName:      gameUtil.GetLangText(bet.GName, req.Syslang),
+		}
+		reportItems = append(reportItems, item)
+	}
+
+	if len(reportItems) == 0 {
+		return nil, utils.ErrCommandSuccessButNoData
+	}
+
+	err = srv.redisCli.HSet(ctx, GetUnsettleReportChkTime, vid, chkTime).Err()
+	if err != nil {
+		xlog.Errorf("error to set chkTime in Redis: %v", err)
+		return nil, utils.ErrRedisError
+	}
+
+	return &view.GetUnsettleReportResp{
+		Result: reportItems,
+	}, nil
+}
+
+func (srv *publicApiService) GetReportDetail(ctx context.Context, req *view.GetReportDetailReq) (*view.GetReportDetailResp, error) {
+	// Validate timestamp
+	if err := utils.CheckTimestamp(req.Timestamp); err != nil {
+		xlog.Errorf("error to check timestamp, err:%+v", err)
+		return nil, err
+	}
+
+	// Verify agent
+	avgResp, err := srv.AgentVerify(ctx, &view.AgentVerifyReq{VendorID: req.VendorID, Signature: req.Signature})
+	if err != nil {
+		xlog.Errorf("error to verify agent, err:%+v", err)
+		return nil, err
+	}
+
+	// Set default values
+	urlFormat := "Y"
+	if req.URLFormat != "" {
+		urlFormat = req.URLFormat
+	}
+
+	limitMode := true
+	if req.Limit == "N" {
+		limitMode = false
+	}
+
+	effectiveTime := 300
+	if req.LimitTime > 0 {
+		effectiveTime = req.LimitTime
+	}
+
+	// Get bet data
+	var bet02 *db.Bet02Extra
+	var member *db.Member
+	var gameType *db.GameType
+	err = srv.Tx(func(tx *gorm.DB) error {
+		bet02, err = srv.bet02Dao.GetBet02ListForReportDetail(tx, req.BetID)
+		if err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return utils.ErrWalletBetNumberNotExist
+			}
+			return err
+		}
+		member, err = srv.userDao.QueryByID(tx, int64(bet02.Bet05))
+		if err != nil {
+			return err
+		}
+		gameType, err = srv.gameTypeDao.QueryByID(tx, int64(bet02.Bet02.Bet02))
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if member.Mem011 != avgResp.Agent.ID {
+		xlog.Errorf("error to verify member belongs to agent, err:%+v", utils.ErrParamInvalidAccountNotBelongToAgent)
+		return nil, utils.ErrParamInvalidAccountNotBelongToAgent
+	}
+
+	if urlFormat == "N" {
+		// Return report format
+		item := &view.ReportDetailItem{
+			User:       member.User,
+			BetID:      req.BetID,
+			BetTime:    bet02.Bet08.Format("2006-01-02 15:04:05"),
+			BeforeCash: bet02.Bet12,
+			Bet:        bet02.Bet13,
+			ValidBet:   bet02.Bet41,
+			Water:      bet02.Bet16,
+			Result:     bet02.Bet17,
+			BetResult:  gameUtil.GetBetContent(strconv.Itoa(bet02.Bet02.Bet02), bet02.Bet09, req.Syslang),
+			WaterBet:   bet02.Bet41,
+			WinLoss:    bet02.Bet14.Sub(bet02.Bet13),
+			IP:         bet02.IP,
+			GID:        strconv.Itoa(bet02.Bet02.Bet02),
+			Event:      bet02.Bet03.String(),
+			EventChild: strconv.Itoa(bet02.Bet04),
+			Round:      bet02.Bet03.String(),
+			Subround:   strconv.Itoa(bet02.Bet04),
+			TableID:    strconv.Itoa(bet02.Bet39),
+			Commission: decimal.NewFromInt(int64(bet02.Commission)),
+			Settime:    bet02.Updatetime.Format("2006-01-02 15:04:05"),
+			Reset:      bet02.Bet38,
+			GameResult: gameUtil.GetGameResultString(strconv.Itoa(bet02.Bet02.Bet02), bet02.Result, req.Syslang),
+			GName:      gameUtil.GetLangText(gameType.Cnname, req.Syslang),
+		}
+		return &view.GetReportDetailResp{
+			Result: item,
+		}, nil
+	} else {
+		// Return URL format
+		params := map[string]interface{}{
+			"mode":      limitMode,
+			"lang":      req.Syslang,
+			"betId":     req.BetID,
+			"timestamp": time.Now().Unix(),
+		}
+
+		paramsJSON, err := json.Marshal(params)
+		if err != nil {
+			return nil, err
+		}
+
+		var token string
+		if limitMode {
+			token = utils.Md5(string(paramsJSON))
+			// Store in Redis with expiration
+			err = srv.redisCli.Set(ctx, token, string(paramsJSON), time.Duration(effectiveTime)*time.Second).Err()
+			if err != nil {
+				return nil, utils.ErrRedisError
+			}
+		} else {
+			token = utils.CustomEncrypt(string(paramsJSON), "key")
+		}
+
+		// Determine URL based on environment
+		var baseURL string
+		if config.Global.GinMode == "prod" {
+			baseURL = "https://rpdetail.c2h6.cn"
+		} else {
+			baseURL = fmt.Sprintf("https://%s/view", config.Global.Host)
+		}
+
+		mode := 1
+		if !limitMode {
+			mode = 2
+		}
+
+		return &view.GetReportDetailResp{
+			Result: map[string]string{
+				"url": fmt.Sprintf("%s/reportDetail.php?mode=%d&token=%s", baseURL, mode, token),
+			},
+		}, nil
+	}
 }

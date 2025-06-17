@@ -10,6 +10,7 @@ import (
 )
 
 type Config struct {
+	Host           string `json:"host"`
 	GinMode        string `json:"gin_mode"` // debug: 使用swagger_local.yaml；release: 使用swagger.yaml
 	ServiceID      string `json:"service_id"`
 	HttpServerPort int    `json:"http_server_port"`

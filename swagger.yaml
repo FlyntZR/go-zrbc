@@ -540,6 +540,12 @@ definitions:
                 x-go-name: Result
         type: object
         x-go-package: go-zrbc/view
+    GetReportDetailResp:
+        properties:
+            result:
+                x-go-name: Result
+        type: object
+        x-go-package: go-zrbc/view
     GetTimeTsResp:
         properties:
             s_tm:
@@ -562,6 +568,15 @@ definitions:
             result:
                 items:
                     $ref: '#/definitions/TipReportItem'
+                type: array
+                x-go-name: Result
+        type: object
+        x-go-package: go-zrbc/view
+    GetUnsettleReportResp:
+        properties:
+            result:
+                items:
+                    $ref: '#/definitions/UnsettleReportItem'
                 type: array
                 x-go-name: Result
         type: object
@@ -892,6 +907,53 @@ definitions:
             subtotal:
                 type: string
                 x-go-name: Subtotal
+        type: object
+        x-go-package: go-zrbc/view
+    UnsettleReportItem:
+        properties:
+            bet:
+                type: string
+                x-go-name: Bet
+            betId:
+                type: string
+                x-go-name: BetID
+            betResult:
+                type: string
+                x-go-name: BetResult
+            betTime:
+                type: string
+                x-go-name: BetTime
+            commission:
+                type: string
+                x-go-name: Commission
+            event:
+                type: string
+                x-go-name: Event
+            eventChild:
+                type: string
+                x-go-name: EventChild
+            gid:
+                type: string
+                x-go-name: GID
+            gname:
+                type: string
+                x-go-name: GName
+            id:
+                format: int64
+                type: integer
+                x-go-name: ID
+            round:
+                type: string
+                x-go-name: Round
+            subround:
+                type: string
+                x-go-name: Subround
+            tableId:
+                type: string
+                x-go-name: TableID
+            user:
+                type: string
+                x-go-name: User
         type: object
         x-go-package: go-zrbc/view
     UploadFileResp:
@@ -1408,6 +1470,65 @@ paths:
                     $ref: '#/responses/CommonError'
             tags:
                 - api渠道接口
+    /v1/get_report_detail:
+        post:
+            consumes:
+                - multipart/form-data
+            description: 获取报表详情
+            operationId: GetReportDetail
+            parameters:
+                - description: 代理商(aid)
+                  in: formData
+                  name: vendorId
+                  type: string
+                  x-go-name: VendorID
+                - description: 代理商标识符
+                  in: formData
+                  name: signature
+                  type: string
+                  x-go-name: Signature
+                - description: 订单编号
+                  format: int64
+                  in: formData
+                  name: betId
+                  type: integer
+                  x-go-name: BetID
+                - description: '链接格式 (Y: URL格式, N: 报表格式)'
+                  in: formData
+                  name: url
+                  type: string
+                  x-go-name: URLFormat
+                - description: 链接有效期 (秒)
+                  format: int64
+                  in: formData
+                  name: limitTime
+                  type: integer
+                  x-go-name: LimitTime
+                - description: '链接是否失效 (Y: 会失效, N: 不会失效)'
+                  in: formData
+                  name: limit
+                  type: string
+                  x-go-name: Limit
+                - description: 时间戳
+                  format: int64
+                  in: formData
+                  name: timestamp
+                  type: integer
+                  x-go-name: Timestamp
+                - description: 0:中文, 1:英文 (非必要)
+                  in: formData
+                  name: syslang
+                  type: string
+                  x-go-name: SyslangStr
+            responses:
+                "200":
+                    description: GetReportDetailResp
+                    schema:
+                        $ref: '#/definitions/GetReportDetailResp'
+                "500":
+                    $ref: '#/responses/CommonError'
+            tags:
+                - api渠道接口
     /v1/get_sign_file:
         post:
             consumes:
@@ -1491,6 +1612,48 @@ paths:
                     description: GetTipReportResp
                     schema:
                         $ref: '#/definitions/GetTipReportResp'
+                "500":
+                    $ref: '#/responses/CommonError'
+            tags:
+                - api渠道接口
+    /v1/get_unsettle_report:
+        post:
+            consumes:
+                - multipart/form-data
+            description: 获取未结算报表
+            operationId: GetUnsettleReport
+            parameters:
+                - description: 代理商(aid)
+                  in: formData
+                  name: vendorId
+                  type: string
+                  x-go-name: VendorID
+                - description: 代理商标识符
+                  in: formData
+                  name: signature
+                  type: string
+                  x-go-name: Signature
+                - description: 时间
+                  in: formData
+                  name: time
+                  type: string
+                  x-go-name: Time
+                - description: 时间戳
+                  format: int64
+                  in: formData
+                  name: timestamp
+                  type: integer
+                  x-go-name: Timestamp
+                - description: 0:中文, 1:英文 (非必要)
+                  in: formData
+                  name: syslang
+                  type: string
+                  x-go-name: SyslangStr
+            responses:
+                "200":
+                    description: GetUnsettleReportResp
+                    schema:
+                        $ref: '#/definitions/GetUnsettleReportResp'
                 "500":
                     $ref: '#/responses/CommonError'
             tags:

@@ -219,6 +219,67 @@ type GetMemberTradeReportResp struct {
 	Result []*TradeItem `json:"result"` // Result data
 }
 
+// swagger:parameters GetReportDetail
+type GetReportDetailReq struct {
+	// 代理商(aid)
+	// in:formData
+	VendorID string `json:"vendorId" form:"vendorId"`
+	// 代理商标识符
+	// in:formData
+	Signature string `json:"signature" form:"signature"`
+	// 订单编号
+	// in:formData
+	BetID int64 `json:"betId" form:"betId"`
+	// 链接格式 (Y: URL格式, N: 报表格式)
+	// in:formData
+	URLFormat string `json:"url" form:"url"`
+	// 链接有效期 (秒)
+	// in:formData
+	LimitTime int `json:"limitTime" form:"limitTime"`
+	// 链接是否失效 (Y: 会失效, N: 不会失效)
+	// in:formData
+	Limit string `json:"limit" form:"limit"`
+	// 时间戳
+	// in:formData
+	Timestamp int64 `json:"timestamp" form:"timestamp"`
+	// 0:中文, 1:英文 (非必要)
+	// in:formData
+	SyslangStr string `json:"syslang" form:"syslang"`
+	// swagger:ignore
+	Syslang string
+}
+
+type ReportDetailItem struct {
+	User       string          `json:"user"`
+	BetID      int64           `json:"betId"`
+	BetTime    string          `json:"betTime"`
+	BeforeCash decimal.Decimal `json:"beforeCash"`
+	Bet        decimal.Decimal `json:"bet"`
+	ValidBet   decimal.Decimal `json:"validbet"`
+	Water      decimal.Decimal `json:"water"`
+	Result     decimal.Decimal `json:"result"`
+	BetResult  string          `json:"betResult"`
+	WaterBet   decimal.Decimal `json:"waterbet"`
+	WinLoss    decimal.Decimal `json:"winLoss"`
+	IP         string          `json:"ip"`
+	GID        string          `json:"gid"`
+	Event      string          `json:"event"`
+	EventChild string          `json:"eventChild"`
+	Round      string          `json:"round"`
+	Subround   string          `json:"subround"`
+	TableID    string          `json:"tableId"`
+	Commission decimal.Decimal `json:"commission"`
+	Settime    string          `json:"settime"`
+	Reset      string          `json:"reset"`
+	GameResult string          `json:"gameResult"`
+	GName      string          `json:"gname"`
+}
+
+// swagger:model
+type GetReportDetailResp struct {
+	Result interface{} `json:"result"` // Result data (either URL or report data)
+}
+
 // swagger:parameters GetTipReport
 type GetTipReportReq struct {
 	// 代理商(aid)
@@ -378,4 +439,47 @@ type DateTimeReportItem struct {
 // swagger:model
 type GetDateTimeReportResp struct {
 	Result []*DateTimeReportItem `json:"result"`
+}
+
+// swagger:parameters GetUnsettleReport
+type GetUnsettleReportReq struct {
+	// 代理商(aid)
+	// in:formData
+	VendorID string `json:"vendorId" form:"vendorId"`
+	// 代理商标识符
+	// in:formData
+	Signature string `json:"signature" form:"signature"`
+	// 时间
+	// in:formData
+	Time string `json:"time" form:"time"`
+	// 时间戳
+	// in:formData
+	Timestamp int64 `json:"timestamp" form:"timestamp"`
+	// 0:中文, 1:英文 (非必要)
+	// in:formData
+	SyslangStr string `json:"syslang" form:"syslang"`
+	// swagger:ignore
+	Syslang string
+}
+
+type UnsettleReportItem struct {
+	BetID      string          `json:"betId"`
+	ID         int64           `json:"id"`
+	GID        string          `json:"gid"`
+	Event      string          `json:"event"`
+	EventChild string          `json:"eventChild"`
+	TableID    string          `json:"tableId"`
+	BetTime    string          `json:"betTime"`
+	Bet        decimal.Decimal `json:"bet"`
+	BetResult  string          `json:"betResult"`
+	Round      string          `json:"round"`
+	Subround   string          `json:"subround"`
+	Commission decimal.Decimal `json:"commission"`
+	User       string          `json:"user"`
+	GName      string          `json:"gname"`
+}
+
+// swagger:model
+type GetUnsettleReportResp struct {
+	Result []*UnsettleReportItem `json:"result"` // Result data
 }

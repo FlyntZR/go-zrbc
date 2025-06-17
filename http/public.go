@@ -42,6 +42,8 @@ func (h *PublicApiHandler) SetRouter(r *gin.Engine) {
 	r.POST("/v1/enable_or_disable_mem", h.EnableOrDisableMem)
 	r.POST("/v1/get_date_time_report", h.GetDateTimeReport)
 	r.POST("/v1/get_tip_report", h.GetTipReport)
+	r.POST("/v1/get_unsettle_report", h.GetUnsettleReport)
+	r.POST("/v1/get_report_detail", h.GetReportDetail)
 }
 
 func (h *PublicApiHandler) handlePublicApi(c *gin.Context) {
@@ -99,6 +101,10 @@ func (h *PublicApiHandler) handlePublicApi(c *gin.Context) {
 		h.GetDateTimeReport(c)
 	case "GetTipReport":
 		h.GetTipReport(c)
+	case "GetUnsettleReport":
+		h.GetUnsettleReport(c)
+	case "GetReportDetail":
+		h.GetReportDetail(c)
 	// Add other command handlers as needed
 	default:
 		if !passCommands[cmd] {
@@ -784,6 +790,103 @@ func (h *PublicApiHandler) GetTipReport(c *gin.Context) {
 
 	xlog.Debugf("GetTipReport req: %+v", &req)
 	resp, err := h.srv.GetTipReport(c, &req)
+	if err != nil {
+		commonresp.ErrResp(c, err)
+		return
+	}
+	commonresp.JsonResp(c, resp)
+}
+
+// swagger:route POST /v1/get_unsettle_report api渠道接口 GetUnsettleReport
+// 获取未结算报表
+// consumes:
+//   - multipart/form-data
+//
+// responses:
+//
+//	200: GetUnsettleReportResp
+//	500: CommonError
+func (h *PublicApiHandler) GetUnsettleReport(c *gin.Context) {
+	var req view.GetUnsettleReportReq
+	req.VendorID = c.PostForm("vendorId")
+	req.Signature = c.PostForm("signature")
+	req.Time = c.PostForm("time")
+	timestamp, err := strconv.ParseInt(c.PostForm("timestamp"), 10, 64)
+	if err != nil {
+		xlog.Warnf("timestamp is not a number, use default value 0")
+		// 方便测试自动时间戳
+		timestamp = time.Now().Unix()
+	}
+	req.Timestamp = timestamp
+
+	syslang, err := strconv.Atoi(c.PostForm("syslang"))
+	if err != nil {
+		xlog.Warnf("syslang is not a number, use default value 0")
+		syslang = 0
+	}
+	if tmpLang, ok := gameUtil.LanguageMap[syslang]; ok {
+		req.Syslang = tmpLang
+	} else {
+		req.Syslang = "cn"
+	}
+
+	xlog.Debugf("GetUnsettleReport req: %+v", &req)
+	resp, err := h.srv.GetUnsettleReport(c, &req)
+	if err != nil {
+		commonresp.ErrResp(c, err)
+		return
+	}
+	commonresp.JsonResp(c, resp)
+}
+
+// swagger:route POST /v1/get_report_detail api渠道接口 GetReportDetail
+// 获取报表详情
+// consumes:
+//   - multipart/form-data
+//
+// responses:
+//
+//	200: GetReportDetailResp
+//	500: CommonError
+func (h *PublicApiHandler) GetReportDetail(c *gin.Context) {
+	var req view.GetReportDetailReq
+	req.VendorID = c.PostForm("vendorId")
+	req.Signature = c.PostForm("signature")
+	betID, err := strconv.ParseInt(c.PostForm("betId"), 10, 64)
+	if err != nil {
+		xlog.Warnf("betId is not a number, use default value 0")
+		betID = 0
+	}
+	req.BetID = betID
+	req.URLFormat = c.PostForm("url")
+	limitTime, err := strconv.Atoi(c.PostForm("limitTime"))
+	if err != nil {
+		xlog.Warnf("limitTime is not a number, use default value 300")
+		limitTime = 300
+	}
+	req.LimitTime = limitTime
+	req.Limit = c.PostForm("limit")
+	timestamp, err := strconv.ParseInt(c.PostForm("timestamp"), 10, 64)
+	if err != nil {
+		xlog.Warnf("timestamp is not a number, use default value 0")
+		// 方便测试自动时间戳
+		timestamp = time.Now().Unix()
+	}
+	req.Timestamp = timestamp
+
+	syslang, err := strconv.Atoi(c.PostForm("syslang"))
+	if err != nil {
+		xlog.Warnf("syslang is not a number, use default value 0")
+		syslang = 0
+	}
+	if tmpLang, ok := gameUtil.LanguageMap[syslang]; ok {
+		req.Syslang = tmpLang
+	} else {
+		req.Syslang = "cn"
+	}
+
+	xlog.Debugf("GetReportDetail req: %+v", &req)
+	resp, err := h.srv.GetReportDetail(c, &req)
 	if err != nil {
 		commonresp.ErrResp(c, err)
 		return

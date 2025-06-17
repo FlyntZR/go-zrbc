@@ -17,6 +17,7 @@ type Bet02Dao interface {
 	GetBet02List(tx *gorm.DB, agentID int64, startTime, endTime int64) ([]int64, error)
 	GetBet02ListForDateTimeReport(tx *gorm.DB, memberID, agentID, startTime, endTime int64, dataType, timeType int, gameNo1, gameNo2 string) ([]*Bet02Extra, error)
 	GetBet02ListForTipReport(tx *gorm.DB, memberID, agentID, startTime, endTime int64, dataType, timeType int, gameNo1, gameNo2 string) ([]*Bet02Extra, error)
+	GetBet02ListForReportDetail(tx *gorm.DB, betID int64) (*Bet02Extra, error)
 }
 
 type bet02Dao struct{}
@@ -151,6 +152,15 @@ func (dao *bet02Dao) GetBet02ListForTipReport(tx *gorm.DB, memberID int64, agent
 
 	err := conn.Find(&ret).Error
 	if err != nil {
+		return nil, err
+	}
+	return ret, nil
+}
+
+func (dao *bet02Dao) GetBet02ListForReportDetail(tx *gorm.DB, betID int64) (*Bet02Extra, error) {
+	var ret = &Bet02Extra{}
+	if err := tx.Table("bet02").Joins("LEFT JOIN game_info ON bet02 = game_info.gi001 AND bet03 = game_info.gi002 AND bet04 = game_info.gi003").
+		Select("bet02.*, game_info.gi007 as result").Where("bet01 = ?", betID).First(&ret).Error; err != nil {
 		return nil, err
 	}
 	return ret, nil
