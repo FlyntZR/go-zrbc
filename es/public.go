@@ -23,9 +23,9 @@ func (c *Client) GetBet02ListForDateTimeReportEs(ctx context.Context, memberID i
 
 	// Add data type filter
 	if dataType == 0 {
-		boolQuery.MustNot(elastic.NewTermQuery("bet09", "Tip_1_"))
+		boolQuery.MustNot(elastic.NewMatchQuery("bet09", "Tip_1_"))
 	} else if dataType == 1 {
-		boolQuery.Must(elastic.NewTermQuery("bet09", "Tip_1_"))
+		boolQuery.Must(elastic.NewMatchQuery("bet09", "Tip_1_"))
 	}
 
 	// Add game number filters
@@ -49,7 +49,7 @@ func (c *Client) GetBet02ListForDateTimeReportEs(ctx context.Context, memberID i
 	searchResult, err := c.client.Search().
 		Index("bet02_report_index").
 		Query(boolQuery).
-		Size(1).        // Increased size limit
+		Size(10000).    // Increased size limit for debugging
 		Timeout("60s"). // Increased timeout
 		Do(ctx)
 	if err != nil {
