@@ -2575,27 +2575,65 @@ func (srv *publicApiService) GetDateTimeReport(ctx context.Context, req *view.Ge
 		} else {
 			// Convert ES results to Bet02Extra format
 			for _, result := range results {
+				xlog.Infof("result from es : %v", result)
 				bet02 := &db.Bet02Extra{
 					Bet02: db.Bet02{
-						Bet01:      int64(result["bet01"].(float64)),
-						Bet02:      int(result["bet02"].(float64)),
-						Bet03:      decimal.NewFromFloat(result["bet03"].(float64)),
-						Bet04:      int(result["bet04"].(float64)),
-						Bet05:      int(result["bet05"].(float64)),
-						Bet08:      time.Unix(int64(result["bet08"].(float64)), 0),
-						Bet09:      result["bet09"].(string),
-						Bet12:      decimal.NewFromFloat(result["bet12"].(float64)),
-						Bet13:      decimal.NewFromFloat(result["bet13"].(float64)),
-						Bet14:      decimal.NewFromFloat(result["bet14"].(float64)),
-						Bet16:      decimal.NewFromFloat(result["bet16"].(float64)),
-						Bet17:      decimal.NewFromFloat(result["bet17"].(float64)),
-						Bet38:      result["bet38"].(string),
-						Bet39:      int(result["bet39"].(float64)),
-						Bet41:      decimal.NewFromFloat(result["bet41"].(float64)),
+						Bet01: int64(result["bet01"].(float64)),
+						Bet02: int(result["bet02"].(float64)),
+						//Bet03:      decimal.NewFromFloat(result["bet03"].(float64)),
+						Bet04: int(result["bet04"].(float64)),
+						Bet05: int(result["bet05"].(float64)),
+						Bet08: time.Unix(int64(result["bet08"].(float64))/1000, 0),
+						Bet09: result["bet09"].(string),
+						//Bet12:      decimal.NewFromFloat(result["bet12"].(float64)),
+						//Bet13:      decimal.NewFromFloat(result["bet13"].(float64)),
+						//Bet14:      decimal.NewFromFloat(result["bet14"].(float64)),
+						//Bet16:      decimal.NewFromFloat(result["bet16"].(float64)),
+						//Bet17: decimal.NewFromFloat(result["bet17"].(float64)),
+						Bet38: result["bet38"].(string),
+						Bet39: int(result["bet39"].(float64)),
+						//Bet41:      decimal.NewFromFloat(result["bet41"].(float64)),
 						IP:         result["ip"].(string),
-						Updatetime: time.Unix(int64(result["updatetime"].(float64)), 0),
+						Updatetime: time.Unix(int64(result["updatetime"].(float64))/1000, 0),
 					},
 					Result: result["result"].(string),
+					User:   result["username"].(string),
+					GName:  result["gameName"].(string),
+				}
+				bet02.Bet03, err = decimal.NewFromString(result["bet03"].(string))
+				if err != nil {
+					xlog.Errorf("error to convert bet03 to decimal: %v", err)
+					return nil, err
+				}
+				bet02.Bet12, err = decimal.NewFromString(result["bet12"].(string))
+				if err != nil {
+					xlog.Errorf("error to convert bet12 to decimal: %v", err)
+					return nil, err
+				}
+				bet02.Bet13, err = decimal.NewFromString(result["bet13"].(string))
+				if err != nil {
+					xlog.Errorf("error to convert bet13 to decimal: %v", err)
+					return nil, err
+				}
+				bet02.Bet14, err = decimal.NewFromString(result["bet14"].(string))
+				if err != nil {
+					xlog.Errorf("error to convert bet14 to decimal: %v", err)
+					return nil, err
+				}
+				bet02.Bet16, err = decimal.NewFromString(result["bet16"].(string))
+				if err != nil {
+					xlog.Errorf("error to convert bet16 to decimal: %v", err)
+					return nil, err
+				}
+				bet02.Bet17, err = decimal.NewFromString(result["bet17"].(string))
+				if err != nil {
+					xlog.Errorf("error to convert bet17 to decimal: %v", err)
+					return nil, err
+				}
+				bet02.Bet41, err = decimal.NewFromString(result["bet41"].(string))
+				if err != nil {
+					xlog.Errorf("error to convert bet41 to decimal: %v", err)
+					return nil, err
 				}
 				bet02List = append(bet02List, bet02)
 			}
@@ -2756,25 +2794,60 @@ func (srv *publicApiService) GetTipReport(ctx context.Context, req *view.GetTipR
 			for _, result := range results {
 				bet02 := &db.Bet02Extra{
 					Bet02: db.Bet02{
-						Bet01:      int64(result["bet01"].(float64)),
-						Bet02:      int(result["bet02"].(float64)),
-						Bet03:      decimal.NewFromFloat(result["bet03"].(float64)),
-						Bet04:      int(result["bet04"].(float64)),
-						Bet05:      int(result["bet05"].(float64)),
-						Bet08:      time.Unix(int64(result["bet08"].(float64)), 0),
-						Bet09:      result["bet09"].(string),
-						Bet12:      decimal.NewFromFloat(result["bet12"].(float64)),
-						Bet13:      decimal.NewFromFloat(result["bet13"].(float64)),
-						Bet14:      decimal.NewFromFloat(result["bet14"].(float64)),
-						Bet16:      decimal.NewFromFloat(result["bet16"].(float64)),
-						Bet17:      decimal.NewFromFloat(result["bet17"].(float64)),
-						Bet38:      result["bet38"].(string),
-						Bet39:      int(result["bet39"].(float64)),
-						Bet41:      decimal.NewFromFloat(result["bet41"].(float64)),
+						Bet01: int64(result["bet01"].(float64)),
+						Bet02: int(result["bet02"].(float64)),
+						// Bet03: decimal.NewFromFloat(result["bet03"].(float64)),
+						Bet04: int(result["bet04"].(float64)),
+						Bet05: int(result["bet05"].(float64)),
+						Bet08: time.Unix(int64(result["bet08"].(float64)), 0),
+						Bet09: result["bet09"].(string),
+						// Bet12:      decimal.NewFromFloat(result["bet12"].(float64)),
+						// Bet13:      decimal.NewFromFloat(result["bet13"].(float64)),
+						// Bet14:      decimal.NewFromFloat(result["bet14"].(float64)),
+						// Bet16:      decimal.NewFromFloat(result["bet16"].(float64)),
+						// Bet17:      decimal.NewFromFloat(result["bet17"].(float64)),
+						// Bet38:      result["bet38"].(string),
+						Bet39: int(result["bet39"].(float64)),
+						// Bet41:      decimal.NewFromFloat(result["bet41"].(float64)),
 						IP:         result["ip"].(string),
-						Updatetime: time.Unix(int64(result["updatetime"].(float64)), 0),
+						Updatetime: time.Unix(int64(result["updatetime"].(float64))/1000, 0),
 					},
 					Result: result["result"].(string),
+				}
+				bet02.Bet03, err = decimal.NewFromString(result["bet03"].(string))
+				if err != nil {
+					xlog.Errorf("error to convert bet03 to decimal: %v", err)
+					return nil, err
+				}
+				bet02.Bet12, err = decimal.NewFromString(result["bet12"].(string))
+				if err != nil {
+					xlog.Errorf("error to convert bet12 to decimal: %v", err)
+					return nil, err
+				}
+				bet02.Bet13, err = decimal.NewFromString(result["bet13"].(string))
+				if err != nil {
+					xlog.Errorf("error to convert bet13 to decimal: %v", err)
+					return nil, err
+				}
+				bet02.Bet14, err = decimal.NewFromString(result["bet14"].(string))
+				if err != nil {
+					xlog.Errorf("error to convert bet14 to decimal: %v", err)
+					return nil, err
+				}
+				bet02.Bet16, err = decimal.NewFromString(result["bet16"].(string))
+				if err != nil {
+					xlog.Errorf("error to convert bet16 to decimal: %v", err)
+					return nil, err
+				}
+				bet02.Bet17, err = decimal.NewFromString(result["bet17"].(string))
+				if err != nil {
+					xlog.Errorf("error to convert bet17 to decimal: %v", err)
+					return nil, err
+				}
+				bet02.Bet41, err = decimal.NewFromString(result["bet41"].(string))
+				if err != nil {
+					xlog.Errorf("error to convert bet41 to decimal: %v", err)
+					return nil, err
 				}
 				bet02List = append(bet02List, bet02)
 			}
@@ -2967,14 +3040,96 @@ func (srv *publicApiService) GetReportDetail(ctx context.Context, req *view.GetR
 	var bet02 *db.Bet02Extra
 	var member *db.Member
 	var gameType *db.GameType
-	err = srv.Tx(func(tx *gorm.DB) error {
-		bet02, err = srv.bet02Dao.GetBet02ListForReportDetail(tx, req.BetID)
+
+	xlog.Debugf("debug to get bet02")
+	// Try to get data from Elasticsearch first
+	var esResult map[string]interface{}
+	if srv.esClient != nil {
+		esResult, err = srv.esClient.GetBet02ListForReportDetailEs(ctx, req.BetID)
 		if err != nil {
-			if err == gorm.ErrRecordNotFound {
-				return utils.ErrWalletBetNumberNotExist
+			xlog.Errorf("error to get bet02 from ES: %v", err)
+		} else if esResult != nil {
+			// Convert ES result to Bet02Extra format
+			xlog.Debugf("debug to get bet02 from ES: %v", esResult)
+			bet02 = &db.Bet02Extra{
+				Bet02: db.Bet02{
+					Bet01: int64(esResult["bet01"].(float64)),
+					Bet02: int(esResult["bet02"].(float64)),
+					//Bet03:      decimal.NewFromString(esResult["bet03"].(string)),
+					Bet04: int(esResult["bet04"].(float64)),
+					Bet05: int(esResult["bet05"].(float64)),
+					Bet08: time.Unix(int64(esResult["bet08"].(float64))/1000, 0),
+					Bet09: esResult["bet09"].(string),
+					// Bet12:      decimal.NewFromFloat(esResult["bet12"].(float64)),
+					// Bet13:      decimal.NewFromFloat(esResult["bet13"].(float64)),
+					// Bet14:      decimal.NewFromFloat(esResult["bet14"].(float64)),
+					// Bet16:      decimal.NewFromFloat(esResult["bet16"].(float64)),
+					// Bet17:      decimal.NewFromFloat(esResult["bet17"].(float64)),
+					Bet38: esResult["bet38"].(string),
+					Bet39: int(esResult["bet39"].(float64)),
+					//Bet41:      decimal.NewFromFloat(esResult["bet41"].(float64)),
+					IP:         esResult["ip"].(string),
+					Updatetime: time.Unix(int64(esResult["updatetime"].(float64))/1000, 0),
+				},
+				Result: esResult["result"].(string),
 			}
-			return err
+			bet02.Bet03, err = decimal.NewFromString(esResult["bet03"].(string))
+			if err != nil {
+				xlog.Errorf("error to convert bet03 to decimal: %v", err)
+				return nil, err
+			}
+			bet02.Bet12, err = decimal.NewFromString(esResult["bet12"].(string))
+			if err != nil {
+				xlog.Errorf("error to convert bet12 to decimal: %v", err)
+				return nil, err
+			}
+			bet02.Bet13, err = decimal.NewFromString(esResult["bet13"].(string))
+			if err != nil {
+				xlog.Errorf("error to convert bet13 to decimal: %v", err)
+				return nil, err
+			}
+			bet02.Bet14, err = decimal.NewFromString(esResult["bet14"].(string))
+			if err != nil {
+				xlog.Errorf("error to convert bet14 to decimal: %v", err)
+				return nil, err
+			}
+			bet02.Bet16, err = decimal.NewFromString(esResult["bet16"].(string))
+			if err != nil {
+				xlog.Errorf("error to convert bet16 to decimal: %v", err)
+				return nil, err
+			}
+			bet02.Bet17, err = decimal.NewFromString(esResult["bet17"].(string))
+			if err != nil {
+				xlog.Errorf("error to convert bet17 to decimal: %v", err)
+				return nil, err
+			}
+			bet02.Bet41, err = decimal.NewFromString(esResult["bet41"].(string))
+			if err != nil {
+				xlog.Errorf("error to convert bet41 to decimal: %v", err)
+				return nil, err
+			}
 		}
+	}
+
+	// If ES is not available or failed, fall back to database
+	if srv.esClient == nil || bet02 == nil {
+		err = srv.Tx(func(tx *gorm.DB) error {
+			bet02, err = srv.bet02Dao.GetBet02ListForReportDetail(tx, req.BetID)
+			if err != nil {
+				if err == gorm.ErrRecordNotFound {
+					return utils.ErrWalletBetNumberNotExist
+				}
+				return err
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Get member and game type info
+	err = srv.Tx(func(tx *gorm.DB) error {
 		member, err = srv.userDao.QueryByID(tx, int64(bet02.Bet05))
 		if err != nil {
 			return err
@@ -2988,6 +3143,7 @@ func (srv *publicApiService) GetReportDetail(ctx context.Context, req *view.GetR
 	if err != nil {
 		return nil, err
 	}
+
 	if member.Mem011 != avgResp.Agent.ID {
 		xlog.Errorf("error to verify member belongs to agent, err:%+v", utils.ErrParamInvalidAccountNotBelongToAgent)
 		return nil, utils.ErrParamInvalidAccountNotBelongToAgent

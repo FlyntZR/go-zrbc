@@ -37,8 +37,8 @@ func (c *Client) GetBet02ListForDateTimeReportEs(ctx context.Context, memberID i
 	}
 
 	// Add time range filters using proper date format
-	startTimeStr := time.Unix(startTime, 0).Format("2006-01-02 15:04:05")
-	endTimeStr := time.Unix(endTime, 0).Format("2006-01-02 15:04:05")
+	startTimeStr := time.Unix(startTime, 0).Format("2006-01-02T15:04:05Z")
+	endTimeStr := time.Unix(endTime, 0).Format("2006-01-02T15:04:05Z")
 	if timeType == 1 {
 		boolQuery.Must(elastic.NewRangeQuery("updatetime").Gte(startTimeStr).Lte(endTimeStr))
 	} else {
@@ -47,20 +47,20 @@ func (c *Client) GetBet02ListForDateTimeReportEs(ctx context.Context, memberID i
 
 	// Execute search with reasonable size limit and timeout
 	searchResult, err := c.client.Search().
-		Index("bet02_index").
+		Index("bet02_report_index").
 		Query(boolQuery).
 		Size(1).        // Increased size limit
 		Timeout("60s"). // Increased timeout
 		Do(ctx)
 	if err != nil {
-		xlog.Errorf("Elasticsearch query failed: %v", err)
+		xlog.Errorf("Elasticsearch query failed: %v, query: %+v", err, boolQuery)
 		return nil, err
 	}
 
 	// Process results
 	var results []map[string]interface{}
 	for _, hit := range searchResult.Hits.Hits {
-		xlog.Infof("hit: %+v", hit)
+		xlog.Infof("hit.Source: %+v", hit.Source)
 		var bet02 map[string]interface{}
 		if err := json.Unmarshal(hit.Source, &bet02); err != nil {
 			xlog.Errorf("Failed to unmarshal hit: %v", err)
@@ -141,4 +141,33 @@ func (c *Client) GetInOutMsEs(ctx context.Context, mIDs []int64, orderID, order 
 	}
 
 	return results, nil
+}
+
+// GetBet02ListForReportDetailEs queries bet02 detail from Elasticsearch by betID
+func (c *Client) GetBet02ListForReportDetailEs(ctx context.Context, betID int64) (map[string]interface{}, error) {
+	boolQuery := elastic.NewBoolQuery()
+	boolQuery.Must(elastic.NewTermQuery("bet01", float64(betID)))
+
+	searchResult, err := c.client.Search().
+		Index("bet02_report_index").
+		Query(boolQuery).
+		Size(1).
+		Do(ctx)
+	if err != nil {
+		xlog.Errorf("Elasticsearch query failed: %v", err)
+		return nil, err
+	}
+
+	if searchResult.TotalHits() == 0 {
+		return nil, nil
+	}
+
+	hit := searchResult.Hits.Hits[0]
+	var bet02 map[string]interface{}
+	if err := json.Unmarshal(hit.Source, &bet02); err != nil {
+		xlog.Errorf("Failed to unmarshal hit: %v", err)
+		return nil, err
+	}
+
+	return bet02, nil
 }
