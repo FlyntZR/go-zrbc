@@ -2812,7 +2812,8 @@ func (srv *publicApiService) GetTipReport(ctx context.Context, req *view.GetTipR
 						IP:         result["ip"].(string),
 						Updatetime: time.Unix(int64(result["updatetime"].(float64))/1000, 0),
 					},
-					Result: result["result"].(string),
+					User:  result["username"].(string),
+					GName: result["gameName"].(string),
 				}
 				bet02.Bet03, err = decimal.NewFromString(result["bet03"].(string))
 				if err != nil {
