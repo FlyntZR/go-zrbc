@@ -159,14 +159,14 @@ type WsGameResultResp struct {
 
 // WsPayoutResultData represents the data field for payout result response
 type WsPayoutResultData struct {
-	GameID       int             `json:"gameID"`
-	GroupID      int             `json:"groupID"`
-	AreaID       int             `json:"areaID"`
-	AreaType     int             `json:"areaType"`
-	MemberID     int64           `json:"memberID"`
-	MoneyWin     decimal.Decimal `json:"moneyWin"`
-	MoneyWinLoss decimal.Decimal `json:"moneyWinLoss"`
-	DtMoneyWin   map[string]int  `json:"dtMoneyWin"`
+	GameID       int                        `json:"gameID"`
+	GroupID      int                        `json:"groupID"`
+	AreaID       int                        `json:"areaID"`
+	AreaType     int                        `json:"areaType"`
+	MemberID     int64                      `json:"memberID"`
+	MoneyWin     decimal.Decimal            `json:"moneyWin"`
+	MoneyWinLoss decimal.Decimal            `json:"moneyWinLoss"`
+	DtMoneyWin   map[string]decimal.Decimal `json:"dtMoneyWin"`
 }
 
 // WsPayoutResp is the response struct for payout result

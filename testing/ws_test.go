@@ -295,6 +295,7 @@ func connect_ws_betting_15101(ch chan string) {
 
 	recvBetResultFlag := false
 	firstTwentyOneFlag := true
+	modifyBetLimitSendFlag := false
 	modifyBetLimitFlag := false
 	betSerialNumber := 1
 	groupID := 0
@@ -365,8 +366,10 @@ func connect_ws_betting_15101(ch chan string) {
 					if WsBetLimitModifyResp.Data.MemberID != memberID && memberID != 0 {
 						continue
 					}
-					log.Printf("15101 修改限红成功: %s", message)
-					modifyBetLimitFlag = true
+					if modifyBetLimitSendFlag {
+						modifyBetLimitFlag = true
+						log.Printf("15101 修改限红成功: %s", message)
+					}
 				} else if wsData.Protocol == 10 {
 					var WsJoinTableResp view.WsTableEntryResp
 					err = json.Unmarshal(message, &WsJoinTableResp)
@@ -379,6 +382,7 @@ func connect_ws_betting_15101(ch chan string) {
 					if err != nil {
 						log.Fatal(err)
 					}
+					modifyBetLimitSendFlag = true
 					log.Printf("15101 修改限红")
 				} else if wsData.Protocol == 38 {
 					var wsBetTimeResp view.WsBetTimeResp

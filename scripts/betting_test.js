@@ -4,7 +4,7 @@ import { randomIntBetween } from 'https://jslib.k6.io/k6-utils/1.2.0/index.js';
 
 export const options = {
   vus: Number(__ENV.ACCOUNT_COUNT) || 2, // Number of virtual users based on ACCOUNT_COUNT
-  duration: '10m', // Test duration
+  duration: '20m', // Test duration
 };
 
 // Configuration
@@ -71,7 +71,6 @@ function connectTo15101(sid, account) {
   const res = ws.connect(WS_URL_15101, {}, function (socket) {
     socket.on('open', function () {
       console.log(`连接到 ${WS_URL_15101} 账号: ${account}`);
-      
       // Send login message with SID
       const loginMsg = JSON.stringify({
         protocol: 1,
@@ -89,22 +88,26 @@ function connectTo15101(sid, account) {
           sid: sid
         }
       });
-      
       socket.send(loginMsg);
     });
 
     let firstTwentyOneFlag = true;
+    let modifyBetLimitSendFlag = false;
     let modifyBetLimitFlag = false;
     let recvBetResultFlag = false;
     let betSerialNumber = 1;
     let groupID = 0;
+    let memberID = 0;
 
     socket.on('message', function (message) {
       const data = JSON.parse(message);
-      
-      if (data.protocol === 1) {
-        console.log(`15101 登录成功: ${JSON.stringify(message)}`);
+      if (data.protocol === 0) {
+        console.log(`15101 登录成功: ${JSON.stringify(message)}, account: ${account}`);
       } else if (data.protocol === 10) {
+        // Join table response
+        if (data.data && data.data.memberID) {
+          memberID = data.data.memberID;
+        }
         console.log(`15101 进入桌台成功: ${JSON.stringify(message)}`);
         // Send modify bet limit request
         const modifyLimitMsg = JSON.stringify({
@@ -119,21 +122,34 @@ function connectTo15101(sid, account) {
           }
         });
         socket.send(modifyLimitMsg);
+        modifyBetLimitSendFlag = true;
         console.log(`15101 修改限红`);
       } else if (data.protocol === 60) {
-        console.log(`15101 修改限红成功: ${JSON.stringify(message)}`);
-        modifyBetLimitFlag = true;
+        // Modify bet limit response
+        if (data.data && data.data.memberID && memberID !== 0 && data.data.memberID !== memberID) return;
+        if (modifyBetLimitSendFlag) {
+            modifyBetLimitFlag = true;
+            console.log(`15101 修改限红成功: ${JSON.stringify(message)}`);
+        }
       } else if (data.protocol === 25) {
-        const gameResultData = data.data;
-        if (gameResultData.groupID !== groupID && groupID !== 0) return;
-        console.log(`15101 得到一局结果: ${JSON.stringify(message)}`);
+        // Game result
+        if (data.data && data.data.groupID !== groupID && groupID !== 0) return;
+        console.log(`15101 得到一局结果: ${JSON.stringify(message)}, account: ${account}`);
         if (modifyBetLimitFlag) {
           recvBetResultFlag = true;
         }
+      } else if (data.protocol === 31) {
+        // Payout
+        if (data.data && data.data.memberID && memberID !== 0 && data.data.memberID !== memberID) {
+            console.log(`15101 派彩失败: ${JSON.stringify(message)}`);
+            console.log(`15101 派彩失败 groupID: ${groupID}, memberID: ${memberID}`);
+            return;
+        }
+        console.log(`15101 派彩成功: ${JSON.stringify(message)}`);
       } else if (data.protocol === 38) {
+        // Bet time
         const betTimeData = data.data;
         if (betTimeData.groupID !== groupID && groupID !== 0) return;
-        
         if (firstTwentyOneFlag) {
           groupID = betTimeData.groupID;
           firstTwentyOneFlag = false;
@@ -150,11 +166,10 @@ function connectTo15101(sid, account) {
             }
           });
           socket.send(joinTableMsg);
-          console.log(`15101 join table success`);
+          console.log(`15101 发送登录桌台: ${joinTableMsg}, groupID: ${groupID}`);
           console.log(`15101 得到下注时间剩余秒数信息第一次: ${JSON.stringify(betTimeData)}`);
           return;
         }
-
         console.log(`15101 得到下注时间剩余秒数: ${JSON.stringify(betTimeData)}`);
         if (recvBetResultFlag && modifyBetLimitFlag) {
           // Send betting message
@@ -172,17 +187,20 @@ function connectTo15101(sid, account) {
             }
           });
           socket.send(bettingMsg);
-          console.log('15101 投注成功: ' + bettingMsg);
+          console.log('15101 投注成功: ' + bettingMsg + ', account: ' + account);
           recvBetResultFlag = false;
           betSerialNumber++;
         }
       } else if (data.protocol === 22) {
-        // Handle betting response
-        if (gameResultData.groupID !== groupID && groupID !== 0) {
-          console.log(`15101 投注成功回复: ${JSON.stringify(message)}`);
+        // Betting response
+        if (data.data && data.data.groupID !== groupID && groupID !== 0) {
+            console.log(`15101 投注成功回复失败: ${JSON.stringify(message)}`);
+            console.log(`15101 投注成功回复失败 groupID: ${groupID}, memberID: ${memberID}`);
+            return;
         }
-      } else if (data.protocol === 31) {
-        console.log(`15101 派彩成功: ${JSON.stringify(message)}`);
+        console.log(`15101 投注成功回复: ${JSON.stringify(message)}`);
+      } else {
+        //console.log(`15101 recv: other msg`);
       }
     });
 
