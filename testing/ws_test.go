@@ -4,10 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"go-zrbc/view"
+	"io"
 	"log"
 	"math/rand"
+	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -293,6 +297,7 @@ func connect_ws_betting_15101(ch chan string) {
 	firstTwentyOneFlag := true
 	modifyBetLimitFlag := false
 	betSerialNumber := 1
+	groupID := 0
 	for {
 		select {
 		case <-interrupt:
@@ -322,12 +327,20 @@ func connect_ws_betting_15101(ch chan string) {
 					if err != nil {
 						log.Fatal("Error Unmarshal to ", err)
 					}
-					if WsBettingResp.Data.GroupID != 3 {
+					if WsBettingResp.Data.GroupID != groupID && groupID != 0 {
 						continue
 					} else {
 						log.Printf("15101 投注成功回复: %s", message)
 					}
 				} else if wsData.Protocol == 25 {
+					var WsGameResultResp view.WsGameResultResp
+					err = json.Unmarshal(message, &WsGameResultResp)
+					if err != nil {
+						log.Fatal("Error Unmarshal to ", err)
+					}
+					if WsGameResultResp.Data.GroupID != groupID && groupID != 0 {
+						continue
+					}
 					log.Printf("15101 得到一局结果: %s", message)
 					if modifyBetLimitFlag {
 						recvBetResultFlag = true
@@ -350,13 +363,14 @@ func connect_ws_betting_15101(ch chan string) {
 					if err != nil {
 						log.Fatal("Error Unmarshal to ", err)
 					}
-					if wsBetTimeResp.Data.GroupID != 3 {
+					if wsBetTimeResp.Data.GroupID != groupID && groupID != 0 {
 						continue
 					}
 					log.Printf("15101 得到下注时间剩余秒数: %s", message)
 					if firstTwentyOneFlag {
+						groupID = wsBetTimeResp.Data.GroupID
 						firstTwentyOneFlag = false
-						err = c.WriteMessage(websocket.TextMessage, []byte(`{"protocol":10,"data":{"dtBetLimitSelectID":{"101":124,"102":125,"103":9,"104":126,"105":127,"106":128,"107":129,"108":149,"110":131,"111":150,"112":250,"113":251,"117":260,"121":261,"125":600,"126":599,"128":584,"129":602,"301":29},"groupID":3}}`))
+						err = c.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf(`{"protocol":10,"data":{"dtBetLimitSelectID":{"101":124,"102":125,"103":9,"104":126,"105":127,"106":128,"107":129,"108":149,"110":131,"111":150,"112":250,"113":251,"117":260,"121":261,"125":600,"126":599,"128":584,"129":602,"301":29},"groupID":%d}}`, groupID)))
 						if err != nil {
 							log.Fatal(err)
 						}
@@ -551,5 +565,46 @@ func TestYMZR_ws_betting_bak(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+func TestYMZR_genarate_user_account(t *testing.T) {
+	apiURL := "https://api.a45.me/api/public/Gateway.php"
+
+	for i := 2; i < 4; i++ {
+		username := fmt.Sprintf("laugh_g_%d", i+1)
+		password := "123456"
+
+		data := url.Values{}
+		data.Set("cmd", "MemberRegister")
+		data.Set("vendorId", "apitest")
+		data.Set("signature", "ee955659a5f3cca6bef436f031f7ab37")
+		data.Set("user", username)
+		data.Set("username", username)
+		data.Set("password", password)
+		data.Set("timestamp", fmt.Sprintf("%d", time.Now().Unix()))
+
+		req, err := http.NewRequest("POST", apiURL, strings.NewReader(data.Encode()))
+		if err != nil {
+			log.Fatalf("Failed to create request for %s: %v", username, err)
+		}
+
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("Cookie", "PHPSESSID=hbi0st15r4ev4iqcse3fs5ol14")
+
+		client := &http.Client{}
+		resp, err := client.Do(req)
+		if err != nil {
+			log.Fatalf("Failed to make request for %s: %v", username, err)
+		}
+
+		body, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			log.Fatalf("Failed to read response for %s: %v", username, err)
+		}
+
+		log.Printf("Registration response for %s: %s", username, string(body))
+		time.Sleep(100 * time.Millisecond) // Add a small delay between requests
 	}
 }

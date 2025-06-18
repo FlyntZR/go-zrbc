@@ -133,3 +133,23 @@ type WsBettingResp struct {
 	Protocol int               `json:"protocol"`
 	Data     WsBettingRespData `json:"data"`
 }
+
+// WsGameResultRespData represents the data field for game result response
+// 根据 {"protocol":25,"data":{"gameID":101,"groupID":115,"result":193,"playerScore":4,"bankerScore":8,"dtCard":{"1":45,"2":32,"3":9,"4":48,"5":15,"6":15},"winBetAreaArr":[1,7,8,13]}} 结构定义
+// swagger:model
+type WsGameResultRespData struct {
+	GameID        int            `json:"gameID"`
+	GroupID       int            `json:"groupID"`
+	Result        int            `json:"result"`
+	PlayerScore   int            `json:"playerScore"`
+	BankerScore   int            `json:"bankerScore"`
+	DtCard        map[string]int `json:"dtCard"`
+	WinBetAreaArr []int          `json:"winBetAreaArr"`
+}
+
+// WsGameResultResp is the response struct for game result
+// swagger:model
+type WsGameResultResp struct {
+	Protocol int                  `json:"protocol"`
+	Data     WsGameResultRespData `json:"data"`
+}
