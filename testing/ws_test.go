@@ -596,9 +596,13 @@ func TestYMZR_ws_betting_bak(t *testing.T) {
 }
 
 func TestYMZR_genarate_user_account(t *testing.T) {
-	apiURL := "https://api.a45.me/api/public/Gateway.php"
+	//apiURL := "https://api.a45.me/api/public/Gateway.php"
+	apiURL := "http://127.0.0.1:8081/api/public/Gateway.php"
 
-	for i := 4; i < 100; i++ {
+	totalRequests := 0
+	totalDuration := time.Duration(0)
+
+	for i := 10; i < 200; i++ {
 		username := fmt.Sprintf("laugh_g_%d", i+1)
 		password := "123456"
 
@@ -611,6 +615,7 @@ func TestYMZR_genarate_user_account(t *testing.T) {
 		data.Set("password", password)
 		data.Set("timestamp", fmt.Sprintf("%d", time.Now().Unix()))
 
+		start := time.Now()
 		req, err := http.NewRequest("POST", apiURL, strings.NewReader(data.Encode()))
 		if err != nil {
 			log.Fatalf("Failed to create request for %s: %v", username, err)
@@ -631,7 +636,16 @@ func TestYMZR_genarate_user_account(t *testing.T) {
 			log.Fatalf("Failed to read response for %s: %v", username, err)
 		}
 
-		log.Printf("Registration response for %s: %s", username, string(body))
+		dur := time.Since(start)
+		totalDuration += dur
+		totalRequests++
+
+		log.Printf("Registration response for %s: %s (耗时: %v)", username, string(body), dur)
 		time.Sleep(100 * time.Millisecond) // Add a small delay between requests
+	}
+
+	if totalRequests > 0 {
+		avgDuration := totalDuration / time.Duration(totalRequests)
+		log.Printf("所有注册请求的平均耗时: %v (共%d次)", avgDuration, totalRequests)
 	}
 }

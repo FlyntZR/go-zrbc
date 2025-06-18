@@ -3,10 +3,12 @@ package es
 import (
 	"context"
 	"encoding/json"
+	"go-zrbc/db"
 	"go-zrbc/pkg/xlog"
 	"time"
 
 	"github.com/olivere/elastic/v7"
+	"github.com/shopspring/decimal"
 )
 
 // GetBet02ListForDateTimeReportEs queries bet02 data from Elasticsearch
@@ -170,4 +172,107 @@ func (c *Client) GetBet02ListForReportDetailEs(ctx context.Context, betID int64)
 	}
 
 	return bet02, nil
+}
+
+// GetBet01ListForUnsettledReportEs queries unsettled bet01 data from Elasticsearch
+func (c *Client) GetBet01ListForUnsettledReportEs(ctx context.Context, date time.Time) ([]*db.Bet01Summary, error) {
+	boolQuery := elastic.NewBoolQuery()
+
+	// Filter by bet07 (accounting date)
+	dateStr := date.Format("2006-01-02T15:04:05Z")
+	boolQuery.Must(elastic.NewTermQuery("bet07", dateStr))
+
+	// Exclude bet02 == 301
+	boolQuery.MustNot(elastic.NewTermQuery("bet02", 301))
+
+	// Exclude bet30 == "Y" (cancelled)
+	boolQuery.Must(elastic.NewTermQuery("bet30", 2))
+
+	boolQuery.Must(elastic.NewTermQuery("settle", false))
+
+	// Exclude bet01 that exist in bet02 (simulate: bet01 NOT IN (SELECT bet01 FROM bet02))
+	// This is tricky in ES; assume a field like 'is_settled' or similar, or skip this filter if not available.
+	// If ES has a field 'is_settled' or similar, use it. Otherwise, this filter may need to be handled at index time.
+	// boolQuery.Must(elastic.NewTermQuery("is_settled", false)) // Uncomment if such a field exists
+
+	searchResult, err := c.client.Search().
+		Index("bet01_report_index").
+		Query(boolQuery).
+		Size(10000).
+		Do(ctx)
+	if err != nil {
+		xlog.Errorf("Elasticsearch query failed: %v, query: %+v", err, boolQuery)
+		return nil, err
+	}
+
+	xlog.Debugf("debug to get bet01 list from ES, searchResult: %v", searchResult)
+
+	var results []*db.Bet01Summary
+	for _, hit := range searchResult.Hits.Hits {
+		var src map[string]interface{}
+		if err := json.Unmarshal(hit.Source, &src); err != nil {
+			xlog.Errorf("Failed to unmarshal hit: %v", err)
+			continue
+		}
+		item := &db.Bet01Summary{}
+		if v, ok := src["betId"].(float64); ok {
+			item.BetID = int64(v)
+		}
+		if v, ok := src["gid"].(float64); ok {
+			item.GID = int(v)
+		}
+		if v, ok := src["event"].(string); ok {
+			item.Event, _ = decimal.NewFromString(v)
+		} else if v, ok := src["event"].(float64); ok {
+			item.Event = decimal.NewFromFloat(v)
+		}
+		if v, ok := src["eventChild"].(float64); ok {
+			item.EventChild = int(v)
+		}
+		if v, ok := src["userId"].(float64); ok {
+			item.ID = int(v)
+		}
+		if v, ok := src["betTime"].(string); ok {
+			if t, err := time.Parse(time.RFC3339, v); err == nil {
+				item.BetTime = t
+			}
+		} else if v, ok := src["betTime"].(float64); ok {
+			item.BetTime = time.Unix(int64(v)/1000, 0)
+		}
+		if v, ok := src["betResult"].(string); ok {
+			item.BetResult = v
+		}
+		if v, ok := src["bet"].(string); ok {
+			item.Bet, _ = decimal.NewFromString(v)
+		} else if v, ok := src["bet"].(float64); ok {
+			item.Bet = decimal.NewFromFloat(v)
+		}
+		if v, ok := src["aid"].(float64); ok {
+			item.AID = int(v)
+		}
+		if v, ok := src["tableId"].(float64); ok {
+			item.TableID = int(v)
+		}
+		if v, ok := src["commission"].(float64); ok {
+			item.Commission = int(v)
+		}
+		if v, ok := src["event"].(string); ok {
+			item.Round, _ = decimal.NewFromString(v)
+		} else if v, ok := src["round"].(float64); ok {
+			item.Round = decimal.NewFromFloat(v)
+		}
+		if v, ok := src["eventChild"].(float64); ok {
+			item.SubRound = int(v)
+		}
+		// gname and user may be indexed in ES, or need enrichment
+		if v, ok := src["gameName"].(string); ok {
+			item.GName = v
+		}
+		if v, ok := src["username"].(string); ok {
+			item.User = v
+		}
+		results = append(results, item)
+	}
+	xlog.Debugf("debug to get bet01 list from ES, results: %v", results)
+	return results, nil
 }

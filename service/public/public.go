@@ -2928,6 +2928,7 @@ func (srv *publicApiService) GetUnsettleReport(ctx context.Context, req *view.Ge
 	// Check if time is within 3 days
 	now := time.Now()
 	if now.Sub(timeObj) > 72*time.Hour {
+		xlog.Errorf("error to check time is out of 3 days, err:%+v", utils.ErrCommandSuccessButNoData)
 		return nil, utils.ErrCommandSuccessButNoData
 	}
 
@@ -2956,17 +2957,30 @@ func (srv *publicApiService) GetUnsettleReport(ctx context.Context, req *view.Ge
 		}
 	}
 
-	// Get unsettled bets
+	// 优先从ES查询
 	var bet01List []*db.Bet01Summary
-	err = srv.Tx(func(tx *gorm.DB) error {
-		bet01List, err = srv.bet01Dao.GetBet01ListForUnsettledReport(tx, timeObj)
+	if srv.esClient != nil {
+		bet01List, err = srv.esClient.GetBet01ListForUnsettledReportEs(ctx, timeObj)
 		if err != nil {
-			return err
+			xlog.Errorf("error to get bet01 list from ES: %v", err)
+			bet01List = nil // fallback
 		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
+	}
+
+	// 如果ES查不到或无数据，fallback到DB
+	if len(bet01List) == 0 {
+		err = srv.Tx(func(tx *gorm.DB) error {
+			bet01List, err = srv.bet01Dao.GetBet01ListForUnsettledReport(tx, timeObj)
+			if err != nil {
+				xlog.Errorf("error to get bet01 list from DB: %v", err)
+				return err
+			}
+			return nil
+		})
+		if err != nil {
+			xlog.Errorf("error to get bet01 list from DB: %v", err)
+			return nil, err
+		}
 	}
 
 	// Convert to response format
