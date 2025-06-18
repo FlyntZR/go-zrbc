@@ -596,13 +596,13 @@ func TestYMZR_ws_betting_bak(t *testing.T) {
 }
 
 func TestYMZR_genarate_user_account(t *testing.T) {
-	//apiURL := "https://api.a45.me/api/public/Gateway.php"
-	apiURL := "http://127.0.0.1:8081/api/public/Gateway.php"
+	apiURL := "https://api.a45.me/api/public/Gateway.php"
+	//apiURL := "http://127.0.0.1:8081/api/public/Gateway.php"
 
 	totalRequests := 0
 	totalDuration := time.Duration(0)
 
-	for i := 10; i < 200; i++ {
+	for i := 200; i < 1000; i++ {
 		username := fmt.Sprintf("laugh_g_%d", i+1)
 		password := "123456"
 

@@ -145,7 +145,7 @@ function connectTo15101(sid, account) {
             console.log(`15101 派彩失败 groupID: ${groupID}, memberID: ${memberID}`);
             return;
         }
-        console.log(`15101 派彩成功: ${JSON.stringify(message)}`);
+        console.log(`15101 派彩成功: account: ${account} ${JSON.stringify(message)}`);
       } else if (data.protocol === 38) {
         // Bet time
         const betTimeData = data.data;
