@@ -123,6 +123,8 @@ function connectTo15101(sid, account) {
         console.log(`15101 修改限红成功: ${JSON.stringify(message)}`);
         modifyBetLimitFlag = true;
       } else if (data.protocol === 25) {
+        const gameResultData = data.data;
+        if (gameResultData.groupID !== groupID && groupID !== 0) return;
         console.log(`15101 得到一局结果: ${JSON.stringify(message)}`);
         if (modifyBetLimitFlag) {
           recvBetResultFlag = true;
@@ -169,6 +171,7 @@ function connectTo15101(sid, account) {
             }
           });
           socket.send(bettingMsg);
+          console.log('15101 投注成功: ' + bettingMsg);
           recvBetResultFlag = false;
           betSerialNumber++;
         }
