@@ -3,7 +3,7 @@ import { check, sleep } from 'k6';
 import { randomIntBetween } from 'https://jslib.k6.io/k6-utils/1.2.0/index.js';
 
 export const options = {
-  vus: 2, // Number of virtual users
+  vus: Number(__ENV.ACCOUNT_COUNT) || 2, // Number of virtual users based on ACCOUNT_COUNT
   duration: '10m', // Test duration
 };
 
@@ -11,7 +11,8 @@ export const options = {
 const WS_IP = __ENV.WS_IP || 'ws://192.168.0.213'; // Get IP from environment variable or use default
 const WS_URL = `${WS_IP}/15109`;
 const WS_URL_15101 = `${WS_IP}/15101`;
-const ACCOUNTS = ['laugh_g_3', 'laugh_g_4'];
+const ACCOUNT_COUNT = Number(__ENV.ACCOUNT_COUNT) || 2;
+const ACCOUNTS = Array.from({ length: ACCOUNT_COUNT }, (_, i) => `laugh_g_${i + 1}`);
 
 export default function () {
   const account = ACCOUNTS[__VU % ACCOUNTS.length];
@@ -177,7 +178,7 @@ function connectTo15101(sid, account) {
         }
       } else if (data.protocol === 22) {
         // Handle betting response
-        if (data.data.groupID === groupID) {
+        if (gameResultData.groupID !== groupID && groupID !== 0) {
           console.log(`15101 投注成功回复: ${JSON.stringify(message)}`);
         }
       } else if (data.protocol === 31) {

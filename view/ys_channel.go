@@ -1,6 +1,9 @@
 package view
 
-import "github.com/gorilla/websocket"
+import (
+	"github.com/gorilla/websocket"
+	"github.com/shopspring/decimal"
+)
 
 type WsReq struct {
 	Protocol int         `json:"protocol"`
@@ -152,4 +155,120 @@ type WsGameResultRespData struct {
 type WsGameResultResp struct {
 	Protocol int                  `json:"protocol"`
 	Data     WsGameResultRespData `json:"data"`
+}
+
+// WsPayoutResultData represents the data field for payout result response
+type WsPayoutResultData struct {
+	GameID       int             `json:"gameID"`
+	GroupID      int             `json:"groupID"`
+	AreaID       int             `json:"areaID"`
+	AreaType     int             `json:"areaType"`
+	MemberID     int64           `json:"memberID"`
+	MoneyWin     decimal.Decimal `json:"moneyWin"`
+	MoneyWinLoss decimal.Decimal `json:"moneyWinLoss"`
+	DtMoneyWin   map[string]int  `json:"dtMoneyWin"`
+}
+
+// WsPayoutResp is the response struct for payout result
+type WsPayoutResp struct {
+	Protocol int                `json:"protocol"`
+	Data     WsPayoutResultData `json:"data"`
+}
+
+// WsTableEntryResp represents the response when successfully entering a table
+type WsTableEntryResp struct {
+	Protocol int              `json:"protocol"`
+	Data     WsTableEntryData `json:"data"`
+}
+
+type WsTableEntryData struct {
+	BOk            bool                         `json:"bOk"`
+	GameID         int                          `json:"gameID"`
+	GroupID        int                          `json:"groupID"`
+	GroupType      int                          `json:"groupType"`
+	AreaID         int                          `json:"areaID"`
+	AreaType       int                          `json:"areaType"`
+	MemberID       int64                        `json:"memberID"`
+	Account        string                       `json:"account"`
+	UserName       string                       `json:"userName"`
+	HeadID         int                          `json:"headID"`
+	SeatIDArr      []int                        `json:"seatIDArr"`
+	CurrencyCode   string                       `json:"currencyCode"`
+	CurrencyName   string                       `json:"currencyName"`
+	CurrencyRate   float64                      `json:"currencyRate"`
+	Balance        float64                      `json:"balance"`
+	Chips          float64                      `json:"chips"`
+	BetMilliSecond int                          `json:"betMilliSecond"`
+	DtOdds         map[string][]decimal.Decimal `json:"dtOdds"`
+	UserCount      int                          `json:"userCount"`
+	DtCard         map[string]interface{}       `json:"dtCard"`
+	MinBet01       int                          `json:"minBet01"`
+	MaxBet01       int                          `json:"maxBet01"`
+	MinBet02       int                          `json:"minBet02"`
+	MaxBet02       int                          `json:"maxBet02"`
+	MinBet03       int                          `json:"minBet03"`
+	MaxBet03       int                          `json:"maxBet03"`
+	MinBet04       int                          `json:"minBet04"`
+	MaxBet04       int                          `json:"maxBet04"`
+	MinBet05       int                          `json:"minBet05"`
+	MaxBet05       int                          `json:"maxBet05"`
+	MinBet06       int                          `json:"minBet06"`
+	MaxBet06       int                          `json:"maxBet06"`
+	MinBet07       int                          `json:"minBet07"`
+	MaxBet07       int                          `json:"maxBet07"`
+	MinBet08       int                          `json:"minBet08"`
+	MaxBet08       int                          `json:"maxBet08"`
+	MinBet09       int                          `json:"minBet09"`
+	MaxBet09       int                          `json:"maxBet09"`
+	MinBet10       int                          `json:"minBet10"`
+	MaxBet10       int                          `json:"maxBet10"`
+	MinBet11       int                          `json:"minBet11"`
+	MaxBet11       int                          `json:"maxBet11"`
+	MinBet12       int                          `json:"minBet12"`
+	MaxBet12       int                          `json:"maxBet12"`
+	MinBet13       int                          `json:"minBet13"`
+	MaxBet13       int                          `json:"maxBet13"`
+	MinBet14       int                          `json:"minBet14"`
+	MaxBet14       int                          `json:"maxBet14"`
+}
+
+// WsBetLimitModifyData represents the data structure for bet limit modification
+type WsBetLimitModifyData struct {
+	GameID             int            `json:"gameID"`
+	MemberID           int64          `json:"memberID"`
+	DtBetLimitSelectID map[string]int `json:"dtBetLimitSelectID"`
+	MinBet01           int            `json:"minBet01"`
+	MaxBet01           int            `json:"maxBet01"`
+	MinBet02           int            `json:"minBet02"`
+	MaxBet02           int            `json:"maxBet02"`
+	MinBet03           int            `json:"minBet03"`
+	MaxBet03           int            `json:"maxBet03"`
+	MinBet04           int            `json:"minBet04"`
+	MaxBet04           int            `json:"maxBet04"`
+	MinBet05           int            `json:"minBet05"`
+	MaxBet05           int            `json:"maxBet05"`
+	MinBet06           int            `json:"minBet06"`
+	MaxBet06           int            `json:"maxBet06"`
+	MinBet07           int            `json:"minBet07"`
+	MaxBet07           int            `json:"maxBet07"`
+	MinBet08           int            `json:"minBet08"`
+	MaxBet08           int            `json:"maxBet08"`
+	MinBet09           int            `json:"minBet09"`
+	MaxBet09           int            `json:"maxBet09"`
+	MinBet10           int            `json:"minBet10"`
+	MaxBet10           int            `json:"maxBet10"`
+	MinBet11           int            `json:"minBet11"`
+	MaxBet11           int            `json:"maxBet11"`
+	MinBet12           int            `json:"minBet12"`
+	MaxBet12           int            `json:"maxBet12"`
+	MinBet13           int            `json:"minBet13"`
+	MaxBet13           int            `json:"maxBet13"`
+	MinBet14           int            `json:"minBet14"`
+	MaxBet14           int            `json:"maxBet14"`
+}
+
+// WsBetLimitModifyResp represents the response structure for bet limit modification
+type WsBetLimitModifyResp struct {
+	Protocol int                  `json:"protocol"`
+	Data     WsBetLimitModifyData `json:"data"`
 }

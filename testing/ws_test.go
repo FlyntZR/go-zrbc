@@ -298,6 +298,7 @@ func connect_ws_betting_15101(ch chan string) {
 	modifyBetLimitFlag := false
 	betSerialNumber := 1
 	groupID := 0
+	memberID := int64(0)
 	for {
 		select {
 		case <-interrupt:
@@ -346,11 +347,33 @@ func connect_ws_betting_15101(ch chan string) {
 						recvBetResultFlag = true
 					}
 				} else if wsData.Protocol == 31 {
+					var WsPayoutResp view.WsPayoutResp
+					err = json.Unmarshal(message, &WsPayoutResp)
+					if err != nil {
+						log.Fatal("Error Unmarshal to ", err)
+					}
+					if WsPayoutResp.Data.MemberID != memberID && memberID != 0 {
+						continue
+					}
 					log.Printf("15101 派彩成功: %s", message)
 				} else if wsData.Protocol == 60 {
+					var WsBetLimitModifyResp view.WsBetLimitModifyResp
+					err = json.Unmarshal(message, &WsBetLimitModifyResp)
+					if err != nil {
+						log.Fatal("Error Unmarshal to ", err)
+					}
+					if WsBetLimitModifyResp.Data.MemberID != memberID && memberID != 0 {
+						continue
+					}
 					log.Printf("15101 修改限红成功: %s", message)
 					modifyBetLimitFlag = true
 				} else if wsData.Protocol == 10 {
+					var WsJoinTableResp view.WsTableEntryResp
+					err = json.Unmarshal(message, &WsJoinTableResp)
+					if err != nil {
+						log.Fatal("Error Unmarshal to ", err)
+					}
+					memberID = WsJoinTableResp.Data.MemberID
 					log.Printf("15101 进入桌台成功: %s", message)
 					err = c.WriteMessage(websocket.TextMessage, []byte(`{"protocol":60,"data":{"dtBetLimitSelectID":{"101":2,"102":125,"103":9,"104":126,"105":127,"106":128,"107":129,"108":149,"110":131,"111":150,"112":250,"113":251,"117":260,"121":261,"125":600,"126":599,"128":584,"129":602,"301":29}}}`))
 					if err != nil {
@@ -571,7 +594,7 @@ func TestYMZR_ws_betting_bak(t *testing.T) {
 func TestYMZR_genarate_user_account(t *testing.T) {
 	apiURL := "https://api.a45.me/api/public/Gateway.php"
 
-	for i := 2; i < 4; i++ {
+	for i := 4; i < 100; i++ {
 		username := fmt.Sprintf("laugh_g_%d", i+1)
 		password := "123456"
 
