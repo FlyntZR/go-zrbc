@@ -4,14 +4,13 @@ import { randomIntBetween } from 'https://jslib.k6.io/k6-utils/1.2.0/index.js';
 
 /*
 使用示例:
-k6 run -e WS_IP=ws://192.168.0.213 -e ACCOUNT_COUNT=5 -e GROUP_IDS=1001,1002,1003,1004,1005 -e DEBUG=true -e OUTPUT_FILE=test_results.json -e DURATION=10m -e PAYOUT_COUNT=10 scripts/betting_test_new.js
+k6 run -e WS_IP=ws://192.168.0.213 -e ACCOUNT_COUNT=5 -e GROUP_IDS=1001,1002,1003,1004,1005 -e DEBUG=true -e DURATION=10m -e PAYOUT_COUNT=10 scripts/betting_test_new.js
 
 参数说明:
 - WS_IP: WebSocket服务器地址
 - ACCOUNT_COUNT: 账号数量
 - GROUP_IDS: 可用的groupID列表，用逗号分隔（如：1001,1002,1003）
 - DEBUG: 是否开启调试日志（true/false）
-- OUTPUT_FILE: 测试结果输出文件路径（可选，如：test_results.json）
 - DURATION: 测试最大执行时间（可选，如：10m, 1h, 30s）
 - PAYOUT_COUNT: 每个账号需要完成的派彩次数（可选，默认10次）
 
@@ -28,7 +27,6 @@ const WS_URL_15101 = `${WS_IP}/15101`;
 const ACCOUNT_COUNT = Number(__ENV.ACCOUNT_COUNT) || 2;
 const ACCOUNTS = Array.from({ length: ACCOUNT_COUNT }, (_, i) => `laugh_g_${i + 1}`);
 const DEBUG = __ENV.DEBUG === 'true'; // Debug flag to control logging
-const OUTPUT_FILE = __ENV.OUTPUT_FILE || null; // Output file path for test results
 const DURATION = __ENV.DURATION || null; // Duration for test execution (e.g., '10m', '1h')
 const PAYOUT_COUNT = Number(__ENV.PAYOUT_COUNT) || 10; // Number of payouts required per account
 
