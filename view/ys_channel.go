@@ -272,3 +272,28 @@ type WsBetLimitModifyResp struct {
 	Protocol int                  `json:"protocol"`
 	Data     WsBetLimitModifyData `json:"data"`
 }
+
+// WsGroupInfo represents a single group item in the group array
+type WsGroupInfo struct {
+	GroupID         int `json:"groupID"`
+	GroupType       int `json:"groupType"`
+	SingleLimit     int `json:"singleLimit"`
+	TableMinBet     int `json:"tableMinBet"`
+	TableMaxBet     int `json:"tableMaxBet"`
+	TableTieMinBet  int `json:"tableTieMinBet"`
+	TableTieMaxBet  int `json:"tableTieMaxBet"`
+	TablePairMinBet int `json:"tablePairMinBet"`
+	TablePairMaxBet int `json:"tablePairMaxBet"`
+	TableStatus     int `json:"tableStatus"`
+}
+
+// WsGroupListData represents the data field for group list response
+type WsGroupListData struct {
+	GroupArr []WsGroupInfo `json:"groupArr"`
+}
+
+// WsGroupListResp represents the response structure for group list (protocol 35)
+type WsGroupListResp struct {
+	Protocol int             `json:"protocol"`
+	Data     WsGroupListData `json:"data"`
+}

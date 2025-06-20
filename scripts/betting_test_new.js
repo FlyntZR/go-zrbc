@@ -10,14 +10,6 @@ const ACCOUNT_COUNT = Number(__ENV.ACCOUNT_COUNT) || 2;
 const ACCOUNTS = Array.from({ length: ACCOUNT_COUNT }, (_, i) => `laugh_g_${i + 1}`);
 const DEBUG = __ENV.DEBUG === 'true'; // Debug flag to control logging
 
-// 全局统计变量
-const payoutStats = {
-  successfulPayouts: new Map(), // 每个账号的派彩成功次数
-  lastPrintTime: Date.now(), // 上次打印时间
-  printInterval: 30000, // 打印间隔（毫秒）- 30秒
-  isPrinting: false, // 防止重复打印的标志
-};
-
 // Helper function for conditional logging
 function debugLog(message) {
   if (DEBUG) {
@@ -31,66 +23,6 @@ function debugError(message) {
   }
 }
 
-// 统计函数
-function updatePayoutStats(account) {
-  const currentCount = payoutStats.successfulPayouts.get(account) || 0;
-  payoutStats.successfulPayouts.set(account, currentCount + 1);
-  
-  // 检查是否需要打印统计信息 - 只在第一个VU上执行
-  const now = Date.now();
-  if (__VU === 1 && !payoutStats.isPrinting && now - payoutStats.lastPrintTime >= payoutStats.printInterval) {
-    payoutStats.isPrinting = true;
-    printPayoutStats();
-    payoutStats.lastPrintTime = now;
-    payoutStats.isPrinting = false;
-  }
-}
-
-// 打印统计信息函数
-function printPayoutStats() {
-  // 确保只有第一个VU打印
-  if (__VU !== 1) {
-    return;
-  }
-  
-  console.log('=== 派彩统计信息 ===');
-  
-  // 统计没有派过彩的账户
-  const accountsWithoutPayout = [];
-  for (const account of ACCOUNTS) {
-    if (!payoutStats.successfulPayouts.has(account) || payoutStats.successfulPayouts.get(account) === 0) {
-      accountsWithoutPayout.push(account);
-    }
-  }
-  
-  console.log(`还没有派过彩的账户数量: ${accountsWithoutPayout.length}`);
-  if (accountsWithoutPayout.length > 0) {
-    console.log('还没有派过彩的账户:');
-    for (const account of accountsWithoutPayout) {
-      console.log(`  ${account}`);
-    }
-  }
-  
-  console.log('各账号派彩成功次数:');
-  // 按账号排序显示
-  const sortedAccounts = Array.from(payoutStats.successfulPayouts.entries())
-    .sort((a, b) => a[0].localeCompare(b[0]));
-  
-  for (const [account, count] of sortedAccounts) {
-    console.log(`  ${account}: ${count} 次`);
-  }
-  
-  console.log('==================');
-}
-
-// 定期打印统计信息的定时器
-function startStatsTimer() {
-  // k6不支持setInterval，移除这个功能
-  if (__VU === 1) {
-    console.log('统计信息将在派彩时每30秒打印一次（仅第一个VU负责打印）');
-  }
-}
-
 export const options = {
   vus: Number(__ENV.ACCOUNT_COUNT) || 2,
   duration: '5m',
@@ -98,11 +30,6 @@ export const options = {
 
 export default function () {
   const account = ACCOUNTS[__VU % ACCOUNTS.length];
-  
-  // 只在第一个VU时启动定时器
-  if (__VU === 1) {
-    startStatsTimer();
-  }
   
   // Connect to 15109 for authentication
   const authRes = ws.connect(WS_URL, {}, function (socket) {
@@ -243,9 +170,7 @@ function connectTo15101(sid, account) {
               debugLog(`15101 派彩失败 groupID: ${groupID}, memberID: ${memberID}`);
               return;
           }
-          debugLog(`15101 派彩成功: account: ${account} ${JSON.stringify(message)}`);
-          // 更新派彩统计
-          updatePayoutStats(account);
+          console.log(`15101 派彩成功: account: ${account} ${JSON.stringify(message)}`);
         } else if (data.protocol === 38) {
           // Bet time
           const betTimeData = data.data;
@@ -328,14 +253,5 @@ function connectTo15101(sid, account) {
   const checkResult = check(res, { '15101连接成功': (r) => r && r.status === 101 });
   if (!checkResult['15101连接成功']) {
     console.error(`15101连接失败 ${account}, 状态: ${res.status}`);
-  }
-}
-
-// 测试结束时打印最终统计
-export function teardown() {
-  // 确保只有第一个VU打印最终统计
-  if (__VU === 1) {
-    console.log('\n=== 测试结束 - 最终派彩统计 ===');
-    printPayoutStats();
   }
 } 
