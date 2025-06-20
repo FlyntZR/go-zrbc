@@ -15,6 +15,7 @@ const payoutStats = {
   successfulPayouts: new Map(), // 每个账号的派彩成功次数
   lastPrintTime: Date.now(), // 上次打印时间
   printInterval: 30000, // 打印间隔（毫秒）- 30秒
+  isPrinting: false, // 防止重复打印的标志
 };
 
 // Helper function for conditional logging
@@ -35,16 +36,23 @@ function updatePayoutStats(account) {
   const currentCount = payoutStats.successfulPayouts.get(account) || 0;
   payoutStats.successfulPayouts.set(account, currentCount + 1);
   
-  // 检查是否需要打印统计信息
+  // 检查是否需要打印统计信息 - 只在第一个VU上执行
   const now = Date.now();
-  if (now - payoutStats.lastPrintTime >= payoutStats.printInterval) {
+  if (__VU === 1 && !payoutStats.isPrinting && now - payoutStats.lastPrintTime >= payoutStats.printInterval) {
+    payoutStats.isPrinting = true;
     printPayoutStats();
     payoutStats.lastPrintTime = now;
+    payoutStats.isPrinting = false;
   }
 }
 
 // 打印统计信息函数
 function printPayoutStats() {
+  // 确保只有第一个VU打印
+  if (__VU !== 1) {
+    return;
+  }
+  
   console.log('=== 派彩统计信息 ===');
   
   // 统计没有派过彩的账户
@@ -78,7 +86,9 @@ function printPayoutStats() {
 // 定期打印统计信息的定时器
 function startStatsTimer() {
   // k6不支持setInterval，移除这个功能
-  console.log('统计信息将在派彩时每30秒打印一次');
+  if (__VU === 1) {
+    console.log('统计信息将在派彩时每30秒打印一次（仅第一个VU负责打印）');
+  }
 }
 
 export const options = {
@@ -323,6 +333,9 @@ function connectTo15101(sid, account) {
 
 // 测试结束时打印最终统计
 export function teardown() {
-  console.log('\n=== 测试结束 - 最终派彩统计 ===');
-  printPayoutStats();
+  // 确保只有第一个VU打印最终统计
+  if (__VU === 1) {
+    console.log('\n=== 测试结束 - 最终派彩统计 ===');
+    printPayoutStats();
+  }
 } 
