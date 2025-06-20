@@ -61,6 +61,8 @@ export const options = {
 
 // 添加一个全局变量来跟踪VU完成状态
 const vuCompleted = new Set();
+// 添加一个全局变量来跟踪每个VU的派彩次数
+const vuPayoutCounts = new Map();
 
 // 添加teardown函数来确保所有VU完成后立即停止
 export function teardown(data) {
@@ -74,6 +76,11 @@ export default function () {
   if (vuCompleted.has(__VU)) {
     console.log(`VU ${__VU} (账号: ${account}) 已经完成，跳过`);
     return;
+  }
+  
+  // 初始化这个VU的派彩计数器
+  if (!vuPayoutCounts.has(__VU)) {
+    vuPayoutCounts.set(__VU, 0);
   }
   
   // Connect to 15109 for authentication
@@ -216,24 +223,32 @@ function connectTo15101(sid, account) {
               debugLog(`15101 派彩失败 groupID: ${groupID}, memberID: ${memberID}`);
               return;
           }
-          console.log(`15101 派彩成功: account: ${account} ${JSON.stringify(message)}`);
+          // console.log(`15101 派彩成功: account: ${account} ${JSON.stringify(message)}`);
           
-          // 收到派彩信息后，标记VU完成并关闭连接
-          console.log(`账号 ${account} 完成一次完整游戏流程，准备结束VU迭代`);
+          // 增加派彩计数
+          const currentPayoutCount = vuPayoutCounts.get(__VU) + 1;
+          vuPayoutCounts.set(__VU, currentPayoutCount);
+          console.log(`账号 ${account} 派彩次数: ${currentPayoutCount}/10`);
           
-          // 标记这个VU为已完成
-          vuCompleted.add(__VU);
-          
-          // 清理ping定时器
-          if (pingInterval) {
-            clearInterval(pingInterval);
+          // 检查是否达到10次派彩
+          if (currentPayoutCount >= 10) {
+            // 收到10次派彩信息后，标记VU完成并关闭连接
+            console.log(`账号 ${account} 完成10次派彩，准备结束VU迭代`);
+            
+            // 标记这个VU为已完成
+            vuCompleted.add(__VU);
+            
+            // 清理ping定时器
+            if (pingInterval) {
+              clearInterval(pingInterval);
+            }
+            
+            // 关闭WebSocket连接
+            socket.close();
+            
+            // 添加一个标记，表示这个VU已经完成
+            console.log(`VU迭代完成 - 账号: ${account}`);
           }
-          
-          // 关闭WebSocket连接
-          socket.close();
-          
-          // 添加一个标记，表示这个VU已经完成
-          console.log(`VU迭代完成 - 账号: ${account}`);
         } else if (data.protocol === 38) {
           // Bet time
           const betTimeData = data.data;
