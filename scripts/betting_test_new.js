@@ -55,7 +55,6 @@ export const options = {
   vus: Number(__ENV.ACCOUNT_COUNT) || 2,
   iterations: Number(__ENV.ACCOUNT_COUNT) || 2, // 每个VU只执行一次迭代
   // duration: '5m', // 移除duration配置
-  gracefulStop: '0s', // 立即停止，不等待
 };
 
 // 添加一个全局变量来跟踪VU完成状态
@@ -156,7 +155,7 @@ function connectTo15101(sid, account) {
         }
       });
       socket.send(loginMsg);
-      debugLog(`发送15101登录消息: ${loginMsg}`);
+      debugLog(`发送15101登录消息: ${account}`);
     });
 
     let firstTwentyOneFlag = true;
@@ -172,13 +171,13 @@ function connectTo15101(sid, account) {
       try {
         const data = JSON.parse(message);
         if (data.protocol === 0) {
-          console.log(`15101 登录成功: ${JSON.stringify(message)}, account: ${account}`);
+          console.log(`15101 登录成功: ${account}`);
         } else if (data.protocol === 10) {
           // Join table response
           if (data.data && data.data.memberID) {
             memberID = data.data.memberID;
           }
-          console.log(`15101 进入桌台成功: ${JSON.stringify(message)}`);
+          console.log(`15101 进入桌台成功: ${account}`);
           // Send modify bet limit request
           const modifyLimitMsg = JSON.stringify({
             protocol: 60,
@@ -199,12 +198,12 @@ function connectTo15101(sid, account) {
           if (data.data && data.data.memberID && memberID !== 0 && data.data.memberID !== memberID) return;
           if (modifyBetLimitSendFlag) {
               modifyBetLimitFlag = true;
-              debugLog(`15101 修改限红成功: ${JSON.stringify(message)}`);
+              debugLog(`15101 修改限红成功: ${account}`);
           }
         } else if (data.protocol === 25) {
           // Game result
           if (data.data && data.data.groupID !== groupID && groupID !== 0) return;
-          debugLog(`15101 得到一局结果: ${JSON.stringify(message)}, account: ${account}`);
+          debugLog(`15101 得到一局结果: ${account}`);
           if (modifyBetLimitFlag) {
             recvBetResultFlag = true;
           }
@@ -253,7 +252,7 @@ function connectTo15101(sid, account) {
               }
             });
             socket.send(joinTableMsg);
-            debugLog(`15101 发送登录桌台: ${joinTableMsg}, groupID: ${groupID}`);
+            debugLog(`15101 发送登录桌台: groupID: ${groupID} account: ${account}`);
             debugLog(`15101 得到下注时间剩余秒数信息第一次: ${JSON.stringify(betTimeData)}`);
             return;
           }
