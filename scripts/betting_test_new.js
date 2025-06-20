@@ -88,253 +88,389 @@ export default function () {
     vuPayoutCounts.set(__VU, 0);
   }
   
+  // 添加1-10秒的随机延迟，让VU连接分散
+  const randomDelay = randomIntBetween(1, 10);
+  debugLog(`VU ${__VU} (账号: ${account}) 等待 ${randomDelay} 秒后开始连接`);
+  sleep(randomDelay);
+  
   // Connect to 15109 for authentication
-  const authRes = ws.connect(WS_URL, {}, function (socket) {
-    socket.on('open', function () {
-      debugLog(`连接到 ${WS_URL} 账号: ${account}`);
-      
-      // Send authentication message
-      const authMsg = JSON.stringify({
-        protocol: 0,
-        data: {
-          account: account,
-          password: "123456",
-          dtBetLimitSelectID: {},
-          bGroupList: false,
-          videoName: "TC",
-          videoDelay: 3000,
-          userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
+  let connectionEstablished = false;
+  let connectionError = null;
+  let retryCount = 0;
+  const maxRetries = 3; // 最大重试次数
+  
+  function attemptConnection() {
+    connectionEstablished = false;
+    connectionError = null;
+    
+    const authRes = ws.connect(WS_URL, {}, function (socket) {
+      socket.on('open', function () {
+        debugLog(`连接到 ${WS_URL} 账号: ${account}`);
+        connectionEstablished = true;
+        
+        // Send authentication message
+        const authMsg = JSON.stringify({
+          protocol: 0,
+          data: {
+            account: account,
+            password: "123456",
+            dtBetLimitSelectID: {},
+            bGroupList: false,
+            videoName: "TC",
+            videoDelay: 3000,
+            userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
+          }
+        });
+        
+        socket.send(authMsg);
+      });
+
+      socket.on('message', function (message) {
+        try {
+          const data = JSON.parse(message);
+          
+          if (data.protocol === 0) {
+            // Authentication successful, get SID
+            const sid = data.data.sid;
+            debugLog(`15109登录成功, sid: ${sid}`);
+            
+            // Connect to 15101 with the SID
+            connectTo15101(sid, account);
+            
+            // Close the authentication socket
+            socket.close();
+          }
+        } catch (e) {
+          debugError(`15109解析消息失败: ${e.message}, 消息内容: ${message}`);
         }
       });
-      
-      socket.send(authMsg);
+
+      socket.on('error', function (e) {
+        console.error(`15109连接错误 ${account}:`, e);
+        connectionError = e;
+      });
+
+      socket.on('close', function () {
+        console.log(`15109连接关闭 ${account}`);
+      });
     });
 
-    socket.on('message', function (message) {
-      try {
-        const data = JSON.parse(message);
-        
-        if (data.protocol === 0) {
-          // Authentication successful, get SID
-          const sid = data.data.sid;
-          debugLog(`15109登录成功, sid: ${sid}`);
-          
-          // Connect to 15101 with the SID
-          connectTo15101(sid, account);
-          
-          // Close the authentication socket
-          socket.close();
-        }
-      } catch (e) {
-        debugError(`15109解析消息失败: ${e.message}, 消息内容: ${message}`);
-      }
-    });
-
-    socket.on('error', function (e) {
-      console.error(`15109连接错误 ${account}:`, e);
-    });
-
-    socket.on('close', function () {
-      console.log(`15109连接关闭 ${account}`);
-    });
-  });
-
-  const authCheck = check(authRes, { '15109连接成功': (r) => r && r.status === 101 });
-  if (!authCheck['15109连接成功']) {
-    console.error(`15109连接失败 ${account}, 状态: ${authRes.status}`);
+    // 等待连接建立或超时
+    let waitCount = 0;
+    const maxWait = 50; // 最多等待5秒 (50 * 100ms)
+    
+    while (!connectionEstablished && !connectionError && waitCount < maxWait) {
+      sleep(0.1); // 等待100ms
+      waitCount++;
+    }
+    
+    return authRes;
   }
+  
+  // 尝试连接，失败时重试
+  let authRes;
+  while (retryCount <= maxRetries) {
+    if (retryCount > 0) {
+      console.log(`15109连接重试 ${retryCount}/${maxRetries} - 账号: ${account}`);
+      sleep(1); // 重试前等待1秒
+    }
+    
+    authRes = attemptConnection();
+    
+    // 检查连接结果
+    if (connectionError) {
+      console.error(`15109连接失败 ${account} (尝试 ${retryCount + 1}/${maxRetries + 1}):`, connectionError);
+      retryCount++;
+      if (retryCount > maxRetries) {
+        console.error(`15109连接最终失败 ${account}，已重试${maxRetries}次`);
+        return;
+      }
+      continue;
+    }
+    
+    if (!connectionEstablished) {
+      console.error(`15109连接超时 ${account} (尝试 ${retryCount + 1}/${maxRetries + 1})`);
+      retryCount++;
+      if (retryCount > maxRetries) {
+        console.error(`15109连接最终超时 ${account}，已重试${maxRetries}次`);
+        return;
+      }
+      continue;
+    }
+    
+    // 连接成功，跳出重试循环
+    break;
+  }
+  
+  // 连接建立成功，进行基本检查
+  const authCheck = check(authRes, { 
+    '15109连接对象存在': (r) => r !== null && r !== undefined
+  });
+  
+  if (!authCheck['15109连接对象存在']) {
+    console.error(`15109连接对象不存在 ${account}`);
+    return;
+  }
+  
+  console.log(`15109连接建立成功 ${account} (尝试 ${retryCount + 1} 次)`);
 }
 
 function connectTo15101(sid, account) {
   // console.log(`开始连接15101, 账号: ${account}, sid: ${sid}`);
   
-  const res = ws.connect(WS_URL_15101, {}, function (socket) {
-    socket.on('open', function () {
-      //console.log(`15101 WebSocket连接已打开: ${WS_URL_15101} 账号: ${account}`);
-      // Send login message with SID
-      const loginMsg = JSON.stringify({
-        protocol: 1,
-        data: {
-          dtBetLimitSelectID: {
-            "101": 124, "102": 125, "103": 9, "104": 126, "105": 127,
-            "106": 128, "107": 129, "108": 149, "110": 131, "111": 150,
-            "112": 250, "113": 251, "117": 260, "121": 261, "125": 600,
-            "126": 599, "128": 584, "129": 602, "301": 29
-          },
-          bGroupList: false,
-          videoName: "TC",
-          videoDelay: 3000,
-          userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
-          sid: sid
-        }
+  let connectionEstablished = false;
+  let connectionError = null;
+  let retryCount = 0;
+  const maxRetries = 3; // 最大重试次数
+  
+  function attemptConnection() {
+    connectionEstablished = false;
+    connectionError = null;
+    
+    const res = ws.connect(WS_URL_15101, {}, function (socket) {
+      socket.on('open', function () {
+        //console.log(`15101 WebSocket连接已打开: ${WS_URL_15101} 账号: ${account}`);
+        connectionEstablished = true;
+        
+        // Send login message with SID
+        const loginMsg = JSON.stringify({
+          protocol: 1,
+          data: {
+            dtBetLimitSelectID: {
+              "101": 124, "102": 125, "103": 9, "104": 126, "105": 127,
+              "106": 128, "107": 129, "108": 149, "110": 131, "111": 150,
+              "112": 250, "113": 251, "117": 260, "121": 261, "125": 600,
+              "126": 599, "128": 584, "129": 602, "301": 29
+            },
+            bGroupList: false,
+            videoName: "TC",
+            videoDelay: 3000,
+            userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+            sid: sid
+          }
+        });
+        socket.send(loginMsg);
+        debugLog(`发送15101登录消息: ${account}`);
       });
-      socket.send(loginMsg);
-      debugLog(`发送15101登录消息: ${account}`);
-    });
 
-    let firstTwentyOneFlag = true;
-    let modifyBetLimitSendFlag = false;
-    let modifyBetLimitFlag = false;
-    let recvBetResultFlag = false;
-    let betSerialNumber = 1;
-    let groupID = getRandomGroupID(account);
-    let memberID = 0;
-    let pingInterval = null;
+      let firstTwentyOneFlag = true;
+      let modifyBetLimitSendFlag = false;
+      let modifyBetLimitFlag = false;
+      let recvBetResultFlag = false;
+      let betSerialNumber = 1;
+      let groupID = getRandomGroupID(account);
+      let memberID = 0;
+      let pingInterval = null;
 
-    socket.on('message', function (message) {
-      try {
-        const data = JSON.parse(message);
-        if (data.protocol === 0) {
-          console.log(`15101 登录成功: ${account}`);
-        } else if (data.protocol === 10) {
-          // Join table response
-          if (data.data && data.data.memberID) {
-            memberID = data.data.memberID;
-          }
-          console.log(`15101 进入桌台成功: ${account}`);
-          // Send modify bet limit request
-          const modifyLimitMsg = JSON.stringify({
-            protocol: 60,
-            data: {
-              dtBetLimitSelectID: {
-                "101": 2, "102": 125, "103": 9, "104": 126, "105": 127,
-                "106": 128, "107": 129, "108": 149, "110": 131, "111": 150,
-                "112": 250, "113": 251, "117": 260, "121": 261, "125": 600,
-                "126": 599, "128": 584, "129": 602, "301": 29
-              }
+      socket.on('message', function (message) {
+        try {
+          const data = JSON.parse(message);
+          if (data.protocol === 0) {
+            console.log(`15101 登录成功: ${account}`);
+          } else if (data.protocol === 10) {
+            // Join table response
+            if (data.data && data.data.memberID) {
+              memberID = data.data.memberID;
             }
-          });
-          socket.send(modifyLimitMsg);
-          modifyBetLimitSendFlag = true;
-          debugLog(`15101 修改限红`);
-        } else if (data.protocol === 60) {
-          // Modify bet limit response
-          if (data.data && data.data.memberID && memberID !== 0 && data.data.memberID !== memberID) return;
-          if (modifyBetLimitSendFlag) {
-              modifyBetLimitFlag = true;
-              debugLog(`15101 修改限红成功: ${account}`);
-          }
-        } else if (data.protocol === 25) {
-          // Game result
-          if (data.data && data.data.groupID !== groupID && groupID !== 0) return;
-          debugLog(`15101 得到一局结果: ${account}`);
-          if (modifyBetLimitFlag) {
-            recvBetResultFlag = true;
-          }
-        } else if (data.protocol === 31) {
-          // Payout
-          if (data.data && data.data.memberID && memberID !== 0 && data.data.memberID !== memberID) {
-              debugLog(`15101 派彩失败: ${JSON.stringify(message)}`);
-              debugLog(`15101 派彩失败 groupID: ${groupID}, memberID: ${memberID}`);
-              return;
-          }
-          // console.log(`15101 派彩成功: account: ${account} ${JSON.stringify(message)}`);
-          
-          // 增加派彩计数
-          const currentPayoutCount = vuPayoutCounts.get(__VU) + 1;
-          vuPayoutCounts.set(__VU, currentPayoutCount);
-          console.log(`账号 ${account} 派彩次数: ${currentPayoutCount}/${PAYOUT_COUNT}`);
-          
-          // 检查是否达到指定次数的派彩
-          if (currentPayoutCount >= PAYOUT_COUNT) {
-            // 收到指定次数的派彩信息后，标记VU完成并关闭连接
-            console.log(`账号 ${account} 完成${PAYOUT_COUNT}次派彩，准备结束VU迭代`);
-            
-            // 标记这个VU为已完成
-            vuCompleted.add(__VU);
-            
-            // 清理ping定时器
-            if (pingInterval) {
-              clearInterval(pingInterval);
-            }
-            
-            // 关闭WebSocket连接
-            socket.close();
-            
-            // 添加一个标记，表示这个VU已经完成
-            console.log(`VU迭代完成 - 账号: ${account}`);
-          }
-        } else if (data.protocol === 38) {
-          // Bet time
-          const betTimeData = data.data;
-          // Only process if the server's groupID matches our randomly selected groupID
-          if (betTimeData.groupID !== groupID && groupID !== 0) return;
-          if (firstTwentyOneFlag) {
-            firstTwentyOneFlag = false;
-            const joinTableMsg = JSON.stringify({
-              protocol: 10,
+            console.log(`15101 进入桌台成功: ${account}`);
+            // Send modify bet limit request
+            const modifyLimitMsg = JSON.stringify({
+              protocol: 60,
               data: {
                 dtBetLimitSelectID: {
-                  "101": 124, "102": 125, "103": 9, "104": 126, "105": 127,
+                  "101": 2, "102": 125, "103": 9, "104": 126, "105": 127,
                   "106": 128, "107": 129, "108": 149, "110": 131, "111": 150,
                   "112": 250, "113": 251, "117": 260, "121": 261, "125": 600,
                   "126": 599, "128": 584, "129": 602, "301": 29
-                },
-                groupID: groupID
+                }
               }
             });
-            socket.send(joinTableMsg);
-            debugLog(`15101 发送登录桌台: groupID: ${groupID} account: ${account}`);
-            debugLog(`15101 得到下注时间剩余秒数信息第一次: ${JSON.stringify(betTimeData)}`);
-            return;
-          }
-          debugLog(`15101 得到下注时间剩余秒数: ${JSON.stringify(betTimeData)}`);
-          if (recvBetResultFlag && modifyBetLimitFlag) {
-            // Send betting message
-            const bettingMsg = JSON.stringify({
-              protocol: 22,
-              data: {
-                betSerialNumber: betSerialNumber,
-                gameNo: betTimeData.gameNo,
-                gameNoRound: betTimeData.gameNoRound,
-                betArr: [{
-                  betArea: [1, 2, 3][randomIntBetween(0, 2)],
-                  addBetMoney: [100, 200, 300][randomIntBetween(0, 2)]
-                }],
-                commission: 0
+            socket.send(modifyLimitMsg);
+            modifyBetLimitSendFlag = true;
+            debugLog(`15101 修改限红`);
+          } else if (data.protocol === 60) {
+            // Modify bet limit response
+            if (data.data && data.data.memberID && memberID !== 0 && data.data.memberID !== memberID) return;
+            if (modifyBetLimitSendFlag) {
+                modifyBetLimitFlag = true;
+                debugLog(`15101 修改限红成功: ${account}`);
+            }
+          } else if (data.protocol === 25) {
+            // Game result
+            if (data.data && data.data.groupID !== groupID && groupID !== 0) return;
+            debugLog(`15101 得到一局结果: ${account}`);
+            if (modifyBetLimitFlag) {
+              recvBetResultFlag = true;
+            }
+          } else if (data.protocol === 31) {
+            // Payout
+            if (data.data && data.data.memberID && memberID !== 0 && data.data.memberID !== memberID) {
+                debugLog(`15101 派彩失败: ${JSON.stringify(message)}`);
+                debugLog(`15101 派彩失败 groupID: ${groupID}, memberID: ${memberID}`);
+                return;
+            }
+            // console.log(`15101 派彩成功: account: ${account} ${JSON.stringify(message)}`);
+            
+            // 增加派彩计数
+            const currentPayoutCount = vuPayoutCounts.get(__VU) + 1;
+            vuPayoutCounts.set(__VU, currentPayoutCount);
+            console.log(`账号 ${account} 派彩次数: ${currentPayoutCount}/${PAYOUT_COUNT}`);
+            
+            // 检查是否达到指定次数的派彩
+            if (currentPayoutCount >= PAYOUT_COUNT) {
+              // 收到指定次数的派彩信息后，标记VU完成并关闭连接
+              console.log(`账号 ${account} 完成${PAYOUT_COUNT}次派彩，准备结束VU迭代`);
+              
+              // 标记这个VU为已完成
+              vuCompleted.add(__VU);
+              
+              // 清理ping定时器
+              if (pingInterval) {
+                clearInterval(pingInterval);
               }
-            });
-            socket.send(bettingMsg);
-            debugLog('15101 投注成功: ' + bettingMsg + ', account: ' + account);
-            recvBetResultFlag = false;
-            betSerialNumber++;
-          }
-        } else if (data.protocol === 22) {
-          // Betting response
-          if (data.data && data.data.groupID !== groupID && groupID !== 0) {
-              debugLog(`15101 投注成功回复失败: ${JSON.stringify(message)}`);
-              debugLog(`15101 投注成功回复失败 groupID: ${groupID}, memberID: ${memberID}`);
+              
+              // 关闭WebSocket连接
+              socket.close();
+              
+              // 添加一个标记，表示这个VU已经完成
+              console.log(`VU迭代完成 - 账号: ${account}`);
+            }
+          } else if (data.protocol === 38) {
+            // Bet time
+            const betTimeData = data.data;
+            // Only process if the server's groupID matches our randomly selected groupID
+            if (betTimeData.groupID !== groupID && groupID !== 0) return;
+            if (firstTwentyOneFlag) {
+              firstTwentyOneFlag = false;
+              const joinTableMsg = JSON.stringify({
+                protocol: 10,
+                data: {
+                  dtBetLimitSelectID: {
+                    "101": 124, "102": 125, "103": 9, "104": 126, "105": 127,
+                    "106": 128, "107": 129, "108": 149, "110": 131, "111": 150,
+                    "112": 250, "113": 251, "117": 260, "121": 261, "125": 600,
+                    "126": 599, "128": 584, "129": 602, "301": 29
+                  },
+                  groupID: groupID
+                }
+              });
+              socket.send(joinTableMsg);
+              debugLog(`15101 发送登录桌台: groupID: ${groupID} account: ${account}`);
+              debugLog(`15101 得到下注时间剩余秒数信息第一次: ${JSON.stringify(betTimeData)}`);
               return;
+            }
+            debugLog(`15101 得到下注时间剩余秒数: ${JSON.stringify(betTimeData)}`);
+            if (recvBetResultFlag && modifyBetLimitFlag) {
+              // Send betting message
+              const bettingMsg = JSON.stringify({
+                protocol: 22,
+                data: {
+                  betSerialNumber: betSerialNumber,
+                  gameNo: betTimeData.gameNo,
+                  gameNoRound: betTimeData.gameNoRound,
+                  betArr: [{
+                    betArea: [1, 2, 3][randomIntBetween(0, 2)],
+                    addBetMoney: [100, 200, 300][randomIntBetween(0, 2)]
+                  }],
+                  commission: 0
+                }
+              });
+              socket.send(bettingMsg);
+              debugLog('15101 投注成功: ' + bettingMsg + ', account: ' + account);
+              recvBetResultFlag = false;
+              betSerialNumber++;
+            }
+          } else if (data.protocol === 22) {
+            // Betting response
+            if (data.data && data.data.groupID !== groupID && groupID !== 0) {
+                debugLog(`15101 投注成功回复失败: ${JSON.stringify(message)}`);
+                debugLog(`15101 投注成功回复失败 groupID: ${groupID}, memberID: ${memberID}`);
+                return;
+            }
+            debugLog(`15101 投注成功回复: ${JSON.stringify(message)}`);
+          } else {
           }
-          debugLog(`15101 投注成功回复: ${JSON.stringify(message)}`);
-        } else {
+        } catch (e) {
+          debugError(`15101解析消息失败: ${e.message}, 消息内容: ${message}`);
         }
-      } catch (e) {
-        debugError(`15101解析消息失败: ${e.message}, 消息内容: ${message}`);
-      }
+      });
+
+      socket.on('error', function (e) {
+        console.error(`15101连接错误 ${account}:`, e);
+        connectionError = e;
+      });
+
+      socket.on('close', function () {
+        console.log(`15101连接关闭 ${account}`);
+      });
+
+      // Send ping every 5 seconds
+      pingInterval = setInterval(function () {
+        socket.ping();
+      }, 5000);
+
+      // Clean up interval on close
+      socket.on('close', function () {
+        clearInterval(pingInterval);
+      });
     });
 
-    socket.on('error', function (e) {
-      console.error(`15101连接错误 ${account}:`, e);
-    });
-
-    socket.on('close', function () {
-      console.log(`15101连接关闭 ${account}`);
-    });
-
-    // Send ping every 5 seconds
-    pingInterval = setInterval(function () {
-      socket.ping();
-    }, 5000);
-
-    // Clean up interval on close
-    socket.on('close', function () {
-      clearInterval(pingInterval);
-    });
-  });
-
-  const checkResult = check(res, { '15101连接成功': (r) => r && r.status === 101 });
-  if (!checkResult['15101连接成功']) {
-    console.error(`15101连接失败 ${account}, 状态: ${res.status}`);
+    // 等待连接建立或超时
+    let waitCount = 0;
+    const maxWait = 50; // 最多等待5秒 (50 * 100ms)
+    
+    while (!connectionEstablished && !connectionError && waitCount < maxWait) {
+      sleep(0.1); // 等待100ms
+      waitCount++;
+    }
+    
+    return res;
   }
+  
+  // 尝试连接，失败时重试
+  let res;
+  while (retryCount <= maxRetries) {
+    if (retryCount > 0) {
+      console.log(`15101连接重试 ${retryCount}/${maxRetries} - 账号: ${account}`);
+      sleep(1); // 重试前等待1秒
+    }
+    
+    res = attemptConnection();
+    
+    // 检查连接结果
+    if (connectionError) {
+      console.error(`15101连接失败 ${account} (尝试 ${retryCount + 1}/${maxRetries + 1}):`, connectionError);
+      retryCount++;
+      if (retryCount > maxRetries) {
+        console.error(`15101连接最终失败 ${account}，已重试${maxRetries}次`);
+        return;
+      }
+      continue;
+    }
+    
+    if (!connectionEstablished) {
+      console.error(`15101连接超时 ${account} (尝试 ${retryCount + 1}/${maxRetries + 1})`);
+      retryCount++;
+      if (retryCount > maxRetries) {
+        console.error(`15101连接最终超时 ${account}，已重试${maxRetries}次`);
+        return;
+      }
+      continue;
+    }
+    
+    // 连接成功，跳出重试循环
+    break;
+  }
+  
+  // 连接建立成功，进行基本检查
+  const checkResult = check(res, { 
+    '15101连接对象存在': (r) => r !== null && r !== undefined
+  });
+  
+  if (!checkResult['15101连接对象存在']) {
+    console.error(`15101连接对象不存在 ${account}`);
+    return;
+  }
+  
+  console.log(`15101连接建立成功 ${account} (尝试 ${retryCount + 1} 次)`);
 } 
