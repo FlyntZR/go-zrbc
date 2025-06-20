@@ -4,7 +4,7 @@ import { randomIntBetween } from 'https://jslib.k6.io/k6-utils/1.2.0/index.js';
 
 /*
 使用示例:
-k6 run -e WS_IP=ws://192.168.0.213 -e ACCOUNT_COUNT=5 -e GROUP_IDS=1001,1002,1003,1004,1005 -e DEBUG=true -e OUTPUT_FILE=test_results.json scripts/betting_test_new.js
+k6 run -e WS_IP=ws://192.168.0.213 -e ACCOUNT_COUNT=5 -e GROUP_IDS=1001,1002,1003,1004,1005 -e DEBUG=true -e OUTPUT_FILE=test_results.json -e DURATION=10m -e PAYOUT_COUNT=10 scripts/betting_test_new.js
 
 参数说明:
 - WS_IP: WebSocket服务器地址
@@ -12,8 +12,13 @@ k6 run -e WS_IP=ws://192.168.0.213 -e ACCOUNT_COUNT=5 -e GROUP_IDS=1001,1002,100
 - GROUP_IDS: 可用的groupID列表，用逗号分隔（如：1001,1002,1003）
 - DEBUG: 是否开启调试日志（true/false）
 - OUTPUT_FILE: 测试结果输出文件路径（可选，如：test_results.json）
+- DURATION: 测试最大执行时间（可选，如：10m, 1h, 30s）
+- PAYOUT_COUNT: 每个账号需要完成的派彩次数（可选，默认10次）
 
 每个账号会从GROUP_IDS数组中随机选择一个groupID作为自己的目标桌台。
+测试会在以下任一条件满足时结束：
+1. 所有账号都完成指定次数的派彩（由PAYOUT_COUNT参数控制）
+2. 达到设定的最大执行时间（如果设置了DURATION参数）
 */
 
 // Configuration - 移到最前面
@@ -24,6 +29,8 @@ const ACCOUNT_COUNT = Number(__ENV.ACCOUNT_COUNT) || 2;
 const ACCOUNTS = Array.from({ length: ACCOUNT_COUNT }, (_, i) => `laugh_g_${i + 1}`);
 const DEBUG = __ENV.DEBUG === 'true'; // Debug flag to control logging
 const OUTPUT_FILE = __ENV.OUTPUT_FILE || null; // Output file path for test results
+const DURATION = __ENV.DURATION || null; // Duration for test execution (e.g., '10m', '1h')
+const PAYOUT_COUNT = Number(__ENV.PAYOUT_COUNT) || 10; // Number of payouts required per account
 
 // Parse GROUP_IDS from environment variable
 const GROUP_IDS_STR = __ENV.GROUP_IDS || '';
@@ -56,7 +63,7 @@ function getRandomGroupID(account) {
 export const options = {
   vus: Number(__ENV.ACCOUNT_COUNT) || 2,
   iterations: Number(__ENV.ACCOUNT_COUNT) || 2, // 每个VU只执行一次迭代
-  // duration: '5m', // 移除duration配置
+  ...(DURATION && { duration: DURATION }), // 如果设置了DURATION，则添加到options中
 };
 
 // 添加一个全局变量来跟踪VU完成状态
@@ -141,11 +148,11 @@ export default function () {
 }
 
 function connectTo15101(sid, account) {
-  console.log(`开始连接15101, 账号: ${account}, sid: ${sid}`);
+  // console.log(`开始连接15101, 账号: ${account}, sid: ${sid}`);
   
   const res = ws.connect(WS_URL_15101, {}, function (socket) {
     socket.on('open', function () {
-      console.log(`15101 WebSocket连接已打开: ${WS_URL_15101} 账号: ${account}`);
+      //console.log(`15101 WebSocket连接已打开: ${WS_URL_15101} 账号: ${account}`);
       // Send login message with SID
       const loginMsg = JSON.stringify({
         protocol: 1,
@@ -228,12 +235,12 @@ function connectTo15101(sid, account) {
           // 增加派彩计数
           const currentPayoutCount = vuPayoutCounts.get(__VU) + 1;
           vuPayoutCounts.set(__VU, currentPayoutCount);
-          console.log(`账号 ${account} 派彩次数: ${currentPayoutCount}/10`);
+          console.log(`账号 ${account} 派彩次数: ${currentPayoutCount}/${PAYOUT_COUNT}`);
           
-          // 检查是否达到10次派彩
-          if (currentPayoutCount >= 10) {
-            // 收到10次派彩信息后，标记VU完成并关闭连接
-            console.log(`账号 ${account} 完成10次派彩，准备结束VU迭代`);
+          // 检查是否达到指定次数的派彩
+          if (currentPayoutCount >= PAYOUT_COUNT) {
+            // 收到指定次数的派彩信息后，标记VU完成并关闭连接
+            console.log(`账号 ${account} 完成${PAYOUT_COUNT}次派彩，准备结束VU迭代`);
             
             // 标记这个VU为已完成
             vuCompleted.add(__VU);
