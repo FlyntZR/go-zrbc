@@ -2,6 +2,19 @@ import ws from 'k6/ws';
 import { check, sleep } from 'k6';
 import { randomIntBetween } from 'https://jslib.k6.io/k6-utils/1.2.0/index.js';
 
+/*
+使用示例:
+k6 run -e WS_IP=ws://192.168.0.213 -e ACCOUNT_COUNT=5 -e GROUP_IDS=1001,1002,1003,1004,1005 -e DEBUG=true scripts/betting_test_new.js
+
+参数说明:
+- WS_IP: WebSocket服务器地址
+- ACCOUNT_COUNT: 账号数量
+- GROUP_IDS: 可用的groupID列表，用逗号分隔（如：1001,1002,1003）
+- DEBUG: 是否开启调试日志（true/false）
+
+每个账号会从GROUP_IDS数组中随机选择一个groupID作为自己的目标桌台。
+*/
+
 // Configuration - 移到最前面
 const WS_IP = __ENV.WS_IP || 'ws://192.168.0.213';
 const WS_URL = `${WS_IP}/15109`;
@@ -9,6 +22,10 @@ const WS_URL_15101 = `${WS_IP}/15101`;
 const ACCOUNT_COUNT = Number(__ENV.ACCOUNT_COUNT) || 2;
 const ACCOUNTS = Array.from({ length: ACCOUNT_COUNT }, (_, i) => `laugh_g_${i + 1}`);
 const DEBUG = __ENV.DEBUG === 'true'; // Debug flag to control logging
+
+// Parse GROUP_IDS from environment variable
+const GROUP_IDS_STR = __ENV.GROUP_IDS || '';
+const GROUP_IDS = GROUP_IDS_STR ? GROUP_IDS_STR.split(',').map(id => parseInt(id.trim())) : [];
 
 // Helper function for conditional logging
 function debugLog(message) {
@@ -23,13 +40,40 @@ function debugError(message) {
   }
 }
 
+// Helper function to get random groupID for an account
+function getRandomGroupID(account) {
+  if (GROUP_IDS.length === 0) {
+    return 0; // Default behavior if no groupIDs provided
+  }
+  const randomIndex = randomIntBetween(0, GROUP_IDS.length - 1);
+  const selectedGroupID = GROUP_IDS[randomIndex];
+  debugLog(`账号 ${account} 随机选择 groupID: ${selectedGroupID}`);
+  return selectedGroupID;
+}
+
 export const options = {
   vus: Number(__ENV.ACCOUNT_COUNT) || 2,
-  duration: '5m',
+  iterations: Number(__ENV.ACCOUNT_COUNT) || 2, // 每个VU只执行一次迭代
+  // duration: '5m', // 移除duration配置
+  gracefulStop: '0s', // 立即停止，不等待
 };
+
+// 添加一个全局变量来跟踪VU完成状态
+const vuCompleted = new Set();
+
+// 添加teardown函数来确保所有VU完成后立即停止
+export function teardown(data) {
+  console.log('所有VU迭代完成，k6测试结束');
+}
 
 export default function () {
   const account = ACCOUNTS[__VU % ACCOUNTS.length];
+  
+  // 检查这个VU是否已经完成
+  if (vuCompleted.has(__VU)) {
+    console.log(`VU ${__VU} (账号: ${account}) 已经完成，跳过`);
+    return;
+  }
   
   // Connect to 15109 for authentication
   const authRes = ws.connect(WS_URL, {}, function (socket) {
@@ -120,8 +164,9 @@ function connectTo15101(sid, account) {
     let modifyBetLimitFlag = false;
     let recvBetResultFlag = false;
     let betSerialNumber = 1;
-    let groupID = 0;
+    let groupID = getRandomGroupID(account);
     let memberID = 0;
+    let pingInterval = null;
 
     socket.on('message', function (message) {
       try {
@@ -171,12 +216,29 @@ function connectTo15101(sid, account) {
               return;
           }
           console.log(`15101 派彩成功: account: ${account} ${JSON.stringify(message)}`);
+          
+          // 收到派彩信息后，标记VU完成并关闭连接
+          console.log(`账号 ${account} 完成一次完整游戏流程，准备结束VU迭代`);
+          
+          // 标记这个VU为已完成
+          vuCompleted.add(__VU);
+          
+          // 清理ping定时器
+          if (pingInterval) {
+            clearInterval(pingInterval);
+          }
+          
+          // 关闭WebSocket连接
+          socket.close();
+          
+          // 添加一个标记，表示这个VU已经完成
+          console.log(`VU迭代完成 - 账号: ${account}`);
         } else if (data.protocol === 38) {
           // Bet time
           const betTimeData = data.data;
+          // Only process if the server's groupID matches our randomly selected groupID
           if (betTimeData.groupID !== groupID && groupID !== 0) return;
           if (firstTwentyOneFlag) {
-            groupID = betTimeData.groupID;
             firstTwentyOneFlag = false;
             const joinTableMsg = JSON.stringify({
               protocol: 10,
@@ -240,7 +302,7 @@ function connectTo15101(sid, account) {
     });
 
     // Send ping every 5 seconds
-    const pingInterval = setInterval(function () {
+    pingInterval = setInterval(function () {
       socket.ping();
     }, 5000);
 
