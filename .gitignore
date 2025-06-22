@@ -31,3 +31,6 @@ swagger_local.yaml
 temp
 logs/*
 info.log
+
+k6_test.json
+report.html
